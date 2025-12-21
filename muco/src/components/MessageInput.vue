@@ -6,7 +6,7 @@ let theme = ref(config.data.themes[config.data.activeTheme]);
 let inputTheme = computed(() => `
   width: ${theme.value.input.width};
   height: ${theme.value.input.height};
-  --placeholder: ${theme.value.input.placeholdercolor};
+  --placeholder: ${theme.value.input.color};
 `);
 
 const emit = defineEmits(['send']);

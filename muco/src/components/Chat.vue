@@ -3,7 +3,8 @@ import { ref, computed, version } from 'vue';
 import MessageList from './MessageList.vue';
 import MessageInput from './MessageInput.vue';
 import { wsService } from '@/services/ws';
-import { config, saveConfig } from '@/store/config'
+import { config, saveConfig, reloadConfig } from '@/store/config';
+import { ipc } from '@/services/ipc';
 
 let currentTheme = ref(config.data.themes[config.data.activeTheme]);
 let messages = ref([]);
@@ -35,16 +36,24 @@ function sendMessage(text) {
       addMessage("Список команд", "help");
       addMessage("Поменять ник: nick [nick]", "nick");
       addMessage("Очистить чат", "clean");
+      addMessage("Перезагрузить чат", "reload");
       addMessage("Список серверов", "list");
       addMessage("Добавить сервер в список серверов: add ws(s)://[ip(:port)]", "add");
       addMessage("Удалить сервер из списка серверов: del ws(s)://[ip(:port)]", "del");
       addMessage("Подключиться к серверу: con ws(s)://[ip(:port)]", "con");
       addMessage("Подключиться к серверу из списка: conl [index]", "conl");
       addMessage("Отключиться от сервера", "dcon");
+      addMessage("Открыть конфиг MUCO", "opencfg");
+      addMessage("Перезапустить MUCO", "restart");
       addMessage("Выйти из MUCO", "exit");
     } else
     if (cmd[0] == "clean") {
       messages.value.splice(0, messages.value.length);
+    } else
+    if (cmd[0] == "reload") {
+      wsService.send({
+        type: "getHistory"
+      })
     } else
     if (cmd[0] == "con") {
       addMessage(`Подключение к ${cmd[1]}...`, "system")
@@ -73,6 +82,12 @@ function sendMessage(text) {
     } else
     if (cmd[0] == "dcon") {
       wsService.send({type: "disconnect"});
+    } else
+    if (cmd[0] == "restart") {
+      ipc.restartApp();
+    } else
+    if (cmd[0] == "opencfg") {
+      ipc.openConfigFolder();
     } else
     if (cmd[0] == "exit") {
       if (wsService.socket) {wsService.send({type: "disconnect"});}
@@ -141,7 +156,10 @@ if (config.data.servers.length > 0 && config.data.autoConnectTo != -1) {
   addMessage(" 1 - указать ник в nickname", "setup");
   addMessage(" 2 - добавить URL сервера в servers", "setup");
   addMessage(" 3 - указать индекс URL сервера в autoConnectTo", "setup");
-  addMessage("", "");
+  addMessage("    или   ", "");
+  addMessage(" 1 - добавить сервер в список используя add", "setup");
+  addMessage(" 2 - подключиться используя conl 0", "setup");
+  addMessage("-=-=-=-=-=-=-=-=-", "");
   addMessage("Активные бинды:", "system");
   addMessage(" Enter - отправить сообщение", "system");
   addMessage(` ${config.data.typeKeybinds.join(' ')} - переключить фокус чата`, "system");

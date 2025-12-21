@@ -1,8 +1,8 @@
 'use strict'
 
 import path from 'path';
-import { loadConfig, saveConfig, getConfig } from './config/config'
-import { app, protocol, BrowserWindow, globalShortcut, ipcMain } from 'electron'
+import { loadConfig, saveConfig, getConfig, getConfigPath } from './config/config'
+import { app, protocol, BrowserWindow, globalShortcut, ipcMain, shell } from 'electron'
 import { createProtocol } from 'vue-cli-plugin-electron-builder/lib'
 import installExtension, { VUEJS3_DEVTOOLS } from 'electron-devtools-installer'
 const isDevelopment = process.env.NODE_ENV !== 'production'
@@ -14,8 +14,6 @@ let config = getConfig();
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { secure: true, standard: true } }
 ])
-
-ipcMain.handle('get-config', () => config);
 
 async function createWindow() {
   // Create the browser window.
@@ -81,6 +79,15 @@ ipcMain.handle('config:get', () => {
 ipcMain.handle('config:set', (_, newConfig) => {
   saveConfig(newConfig)
   return true
+})
+
+ipcMain.on('app:restart', () => {
+  app.relaunch()
+  app.exit(0)
+})
+
+ipcMain.on('config:openFolder', () => {
+  shell.openPath(getConfigPath())
 })
 
 // Quit when all windows are closed.

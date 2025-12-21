@@ -52,4 +52,9 @@ watch(
   top: 3%;
   left: 3%;
 }
+
+.messages::-webkit-scrollbar {
+  display: none;
+}
+
 </style>

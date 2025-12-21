@@ -21,10 +21,10 @@ const defaultConfig = {
             message: {
                 author: {
                     background: "none",
-                    textcolor: "rgba(255, 255, 255, 0.9)",
+                    textcolor: "rgba(255, 255, 255, 0.7)",
                     font: "Arial, sans-serif",
                     fontsize: "12px",
-                    fontboldness: "400"
+                    fontboldness: "bold"
                 },
                 content: {
                     background: "none",
@@ -37,13 +37,13 @@ const defaultConfig = {
             input: {
                 height: "24px",
                 width: "100%",
-                background: "rgba(18, 18, 18, 0.4)"
+                color: "rgba(255, 255, 255, 0.4)"
             }
         },
         "white" : {
             base: {
                 basecolor: "rgba(255, 255, 255, 0.4)",
-                textcolor: "rgba(0, 0, 0, 0.9)",
+                textcolor: "rgba(22, 22, 22, 0.9)",
                 font: "Arial, sans-serif",
                 fontsize: "12px",
                 fontboldness: "0"
@@ -51,10 +51,10 @@ const defaultConfig = {
             message: {
                 author: {
                     background: "none",
-                    textcolor: "rgba(0, 0, 0, 0.9)",
+                    textcolor: "rgba(22, 22, 22, 0.9)",
                     font: "Arial, sans-serif",
                     fontsize: "12px",
-                    fontboldness: "400"
+                    fontboldness: "bold"
                 },
                 content: {
                     background: "none",
@@ -67,7 +67,7 @@ const defaultConfig = {
             input: {
                 height: "24px",
                 width: "100%",
-                background: "rgba(255, 255, 255, 0.4)"
+                color: "rgba(18, 18, 18, 0.6)"
             }
         }
     },
@@ -79,7 +79,7 @@ const defaultConfig = {
     autoConnectTo: -1 // index of server, connect on startup, -1 for ignoring
 }
 
-function getConfigPath() {
+export function getConfigPath() {
   return path.join(app.getPath('userData'), CONFIG_NAME)
 }
 
@@ -87,17 +87,19 @@ export function loadConfig() {
   if (cache) return cache
 
   const configPath = getConfigPath()
+  let userConfig = {}
 
-  if (!fs.existsSync(configPath)) {
-    fs.writeFileSync(
-      configPath,
-      JSON.stringify(defaultConfig, null, 2)
-    )
-    cache = structuredClone(defaultConfig)
-    return cache
+  if (fs.existsSync(configPath)) {
+    userConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
   }
 
-  cache = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const merged = deepMerge(defaultConfig, userConfig)
+
+  if (JSON.stringify(userConfig) !== JSON.stringify(merged)) {
+    fs.writeFileSync(configPath, JSON.stringify(merged, null, 2))
+  }
+
+  cache = merged
   return cache
 }
 
@@ -109,4 +111,22 @@ export function saveConfig(newConfig) {
 
 export function getConfig() {
   return cache || loadConfig()
+}
+
+export function deepMerge(defaults, user) {
+    const result = structuredClone(defaults)
+    for (const key in user) {
+    if (
+        typeof user[key] === 'object' &&
+        user[key] !== null &&
+        !Array.isArray(user[key]) &&
+        typeof defaults[key] === 'object'
+    ) {
+        result[key] = deepMerge(defaults[key], user[key])
+    } else {
+        result[key] = user[key]
+    }
+    }
+
+    return result
 }

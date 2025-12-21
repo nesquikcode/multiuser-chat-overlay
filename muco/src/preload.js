@@ -1,12 +1,15 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
-contextBridge.exposeInMainWorld('api', {
-  getConfig: () => ipcRenderer.invoke('get-config'),
-  onTypeEvent: (cb) => ipcRenderer.on('type-event', cb),
-  onStopTypeEvent: (cb) => ipcRenderer.on('stop-type-event', cb)
-})
+contextBridge.exposeInMainWorld('ipc', {
+  send: (channel, payload) =>
+    ipcRenderer.send(channel, payload),
 
-contextBridge.exposeInMainWorld('config', {
-  get: () => ipcRenderer.invoke('config:get'),
-  set: (cfg) => ipcRenderer.invoke('config:set', cfg)
+  invoke: (channel, payload) =>
+    ipcRenderer.invoke(channel, payload),
+
+  on(channel, callback) {
+    const wrapped = (_, data) => callback(data)
+    ipcRenderer.on(channel, wrapped)
+    return () => ipcRenderer.removeListener(channel, wrapped)
+  }
 })
