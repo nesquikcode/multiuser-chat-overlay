@@ -28,12 +28,18 @@ function sendMessage(text) {
       id: Date.now()
     });
   } else {
+    if (!text.startsWith("!")) {addMessage(text, config.data.nickname, Date.now());return}
     let cmd = text.replace("!", "").split(" ");
     if (cmd[0] == "help") {
       addMessage("[описание]", "[команда]");
       addMessage("Список команд", "help");
+      addMessage("Поменять ник: nick [nick]", "nick");
       addMessage("Очистить чат", "clean");
+      addMessage("Список серверов", "list");
+      addMessage("Добавить сервер в список серверов: add ws(s)://[ip(:port)]", "add");
+      addMessage("Удалить сервер из списка серверов: del ws(s)://[ip(:port)]", "del");
       addMessage("Подключиться к серверу: con ws(s)://[ip(:port)]", "con");
+      addMessage("Подключиться к серверу из списка: conl [index]", "conl");
       addMessage("Отключиться от сервера", "dcon");
       addMessage("Выйти из MUCO", "exit");
     } else
@@ -41,8 +47,29 @@ function sendMessage(text) {
       messages.value.splice(0, messages.value.length);
     } else
     if (cmd[0] == "con") {
-      addMessage(`Подключение к ${cmd[1]}...`)
+      addMessage(`Подключение к ${cmd[1]}...`, "system")
       wsService.connect(cmd[1]);
+    } else
+    if (cmd[0] == "nick") {
+      let nick = cmd[1];
+      config.data.nickname = nick;
+      saveConfig();
+      addMessage(`Ник изменен на '${nick}'.`, "system");
+    } else
+    if (cmd[0] == "add") {
+      let server = cmd[1];
+      config.data.servers.push(server);
+      saveConfig();
+      addMessage(`Добавлен сервер ${server}.`, "system");
+    } else
+    if (cmd[0] == "conl") {
+      let server = config.data.servers.at(Number(cmd[1]));
+      if (server) {
+        addMessage(`Подключение к ${server}...`, "system")
+        wsService.connect(server);
+      } else {
+        addMessage("Такого индекса нет в списке.", "system");
+      }
     } else
     if (cmd[0] == "dcon") {
       wsService.send({type: "disconnect"});
@@ -50,6 +77,17 @@ function sendMessage(text) {
     if (cmd[0] == "exit") {
       if (wsService.socket) {wsService.send({type: "disconnect"});}
       window.close();
+    } else
+    if (cmd[0] == "list") {
+      addMessage("Список серверов:", "system");
+      let i = 0;
+      for (let server of config.data.servers) {
+        addMessage(`#${i} - ${server}`, "system");
+        i++;
+      }
+      if (config.data.servers.length == 0) {
+        addMessage(" - нет серверов - ", "system");
+      }
     }
     else {
       addMessage(text, config.data.nickname, Date.now());

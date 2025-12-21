@@ -1,11 +1,6 @@
-#!/usr/bin/env python
-
-"""Echo server using the asyncio API."""
-
 import asyncio
-from http import client
 from websockets.asyncio.server import serve
-import random, json
+import json
 import ssl
 
 size = 512
@@ -34,6 +29,12 @@ async def muco(websocket):
                     "type" : "history",
                     "messages" : messages
                 }))
+            elif content["type"] == "disconnect":
+                await websocket.send(json.dumps({
+                    "type" : "dcon-agree"
+                }))
+                clients.remove(websocket)
+                await websocket.close()
             elif content["type"] == "message":
                 messages.append({
                     "text" : content["text"],
@@ -62,7 +63,6 @@ async def broadcast(msg):
 async def main():
     async with serve(muco, "0.0.0.0", 5656, ssl=ssl_context) as server:
         await server.serve_forever()
-
 
 if __name__ == "__main__":
     asyncio.run(main())

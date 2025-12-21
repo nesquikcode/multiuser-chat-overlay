@@ -1,4 +1,4 @@
-import { reactive } from 'vue'
+import { reactive, toRaw } from 'vue'
 
 export const config = reactive({
   ready: false,
@@ -83,5 +83,5 @@ export async function loadConfig() {
 }
 
 export async function saveConfig() {
-  await window.config.set(config.data)
+  await window.config.set(toRaw(config.data))
 }
