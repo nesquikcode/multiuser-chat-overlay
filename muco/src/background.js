@@ -61,6 +61,14 @@ async function createWindow() {
     });
   }
 
+  ipcMain.on('window:blur', () => {
+    console.log("[event]: stop-type-event");
+    win.webContents.send('stop-type-event');
+    focused = false;
+    win.show();
+    win.blur();
+  })
+
   if (process.env.WEBPACK_DEV_SERVER_URL) {
     // Load the url of the dev server if in development mode
     await win.loadURL(process.env.WEBPACK_DEV_SERVER_URL)

@@ -75,6 +75,7 @@ const defaultConfig = {
     typeKeybinds: [
     "'"
     ],
+    blurOnEnter: true,
     servers: [], // ip addresses like "ws://127.0.0.1:1111"
     autoConnectTo: -1 // index of server, connect on startup, -1 for ignoring
 }

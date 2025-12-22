@@ -21,5 +21,9 @@ export const ipc = {
 
     openConfigFolder() {
         window.ipc.send('config:openFolder')
+    },
+
+    blurWindow() {
+        window.ipc.send('window:blur')
     }
 }

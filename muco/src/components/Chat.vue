@@ -21,6 +21,7 @@ function addMessage(text, author = config.data.nickname, id = Date.now()) {
 };
 
 function sendMessage(text) {
+  if (config.data.blurOnEnter) {ipc.blurWindow();}
   if (wsService.socket && !text.startsWith("!")) {
     wsService.send({
       type: "message",
