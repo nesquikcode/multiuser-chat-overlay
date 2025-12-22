@@ -13,6 +13,7 @@ class ServerConfig:
     server_size: int = 256
     server_history_size: int = 1024
     server_path: str = "/"
+    certs: tuple | None = None
 
 class MUCOServer:
 
@@ -102,10 +103,18 @@ class MUCOServer:
         print(f"Server path: {self.config.server_path}")
         print(f"Server size: {self.config.server_size}")
         print(f"History size: {self.config.server_history_size}")
+        
+        ssl_context = None
+        if self.config.certs:
+            import ssl
+            ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+            ssl_context.load_cert_chain(*self.config.certs)
+        
         web.run_app(
             self.app,
             host=self.config.ip,
-            port=self.config.port
+            port=self.config.port,
+            ssl_context=ssl_context
         )
 
 if __name__ == "__main__":
