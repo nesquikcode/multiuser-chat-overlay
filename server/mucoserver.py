@@ -42,7 +42,7 @@ async def muco(websocket):
                     "id" : content["id"]
                 })
                 if len(messages) > size:
-                    messages = messages[:size]
+                    messages = messages[-size:]
                 await broadcast(json.dumps({
                     "type" : "message",
                     "text" : content["text"],
