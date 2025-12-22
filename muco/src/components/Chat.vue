@@ -95,7 +95,7 @@ function sendMessage(text) {
     } else
     if (cmd[0] == "list") {
       addMessage("Список серверов:", "system");
-      let i = 0;s
+      let i = 0;
       for (let server of config.data.servers) {
         addMessage(`#${i} - ${server}`, "system");
         i++;
