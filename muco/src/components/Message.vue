@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { config, saveConfig } from '@/store/config'
+import { renderMarkdownSafe } from '@/utils/markdown';
 
 let currentTheme = config.data.themes[config.data.activeTheme];
 let authorTheme = computed(() => `
@@ -25,12 +26,14 @@ const props = defineProps({
   }
 });
 let message = props.message;
+let renderedContent = ref(renderMarkdownSafe(message.text));
+
 </script>
 
 <template>
   <div class="message">
     <div class="author" :style="authorTheme">{{ message.author }}: </div>
-    <div class="content" :style="contentTheme">{{ message.text }}</div>
+    <div class="content" :style="contentTheme" v-html="renderedContent"></div>
   </div>
 </template>
 
@@ -41,6 +44,7 @@ let message = props.message;
   flex-direction: row;
   gap: 4px;
   margin-bottom: 1px;
+  height: auto;
 }
 
 .author {
@@ -54,6 +58,13 @@ let message = props.message;
   word-break: break-word;
   width: 89%;
   -webkit-app-region: no-drag;
+}
+
+
+.content p {
+  margin: 0;
+  display: inline;
+  line-height: 1;
 }
 
 </style>

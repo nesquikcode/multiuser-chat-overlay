@@ -19,6 +19,8 @@
   "dependencies": {
     "@vueuse/electron": "^14.1.0",
     "core-js": "^3.8.3",
+    "dompurify": "^3.3.1",
+    "marked": "^17.0.1",
     "pinia": "^3.0.4",
     "vue": "^3.2.13"
   },

@@ -39,11 +39,11 @@ function sendMessage(text) {
       addMessage("Перезагрузить чат", "reload");
       addMessage("Список серверов", "list");
       addMessage("Добавить сервер в список серверов: add ws(s)://[ip(:port)]", "add");
-      addMessage("Удалить сервер из списка серверов: del ws(s)://[ip(:port)]", "del");
+      addMessage("Удалить сервер из списка серверов: del [index]", "del");
       addMessage("Подключиться к серверу: con ws(s)://[ip(:port)]", "con");
       addMessage("Подключиться к серверу из списка: conl [index]", "conl");
       addMessage("Отключиться от сервера", "dcon");
-      addMessage("Открыть конфиг MUCO", "opencfg");
+      addMessage("Открыть конфиг MUCO", "config");
       addMessage("Перезапустить MUCO", "restart");
       addMessage("Выйти из MUCO", "exit");
     } else
@@ -71,6 +71,13 @@ function sendMessage(text) {
       saveConfig();
       addMessage(`Добавлен сервер ${server}.`, "system");
     } else
+    if (cmd[0] == "del") {
+      let serverIndex = cmd[1];
+      let server = config.data.servers[serverIndex];
+      config.data.servers.splice(serverIndex, 1);
+      saveConfig();
+      addMessage(`Удален сервер ${server}.`, "system");
+    } else
     if (cmd[0] == "conl") {
       let server = config.data.servers.at(Number(cmd[1]));
       if (server) {
@@ -86,7 +93,7 @@ function sendMessage(text) {
     if (cmd[0] == "restart") {
       ipc.restartApp();
     } else
-    if (cmd[0] == "opencfg") {
+    if (cmd[0] == "config") {
       ipc.openConfigFolder();
     } else
     if (cmd[0] == "exit") {
@@ -156,7 +163,7 @@ if (config.data.servers.length > 0 && config.data.autoConnectTo != -1) {
   addMessage(" 1 - указать ник в nickname", "setup");
   addMessage(" 2 - добавить URL сервера в servers", "setup");
   addMessage(" 3 - указать индекс URL сервера в autoConnectTo", "setup");
-  addMessage("    или   ", "");
+  addMessage("или", "");
   addMessage(" 1 - добавить сервер в список используя add", "setup");
   addMessage(" 2 - подключиться используя conl 0", "setup");
   addMessage("-=-=-=-=-=-=-=-=-", "");
