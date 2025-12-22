@@ -58,7 +58,7 @@ async def broadcast(msg):
     for x in clients.copy():
         try: await x.send(msg)
         except:
-            clients.remove(x)  
+            clients.remove(x)
 
 async def main():
     async with serve(muco, "0.0.0.0", 5656, ssl=ssl_context) as server:

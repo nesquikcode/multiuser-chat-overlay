@@ -5,12 +5,11 @@ import MessageInput from './MessageInput.vue';
 import { wsService } from '@/services/ws';
 import { config, saveConfig, reloadConfig } from '@/store/config';
 import { ipc } from '@/services/ipc';
+import { MUCOAPI } from '@/services/api';
 
+let api = new MUCOAPI(wsService);
 let currentTheme = ref(config.data.themes[config.data.activeTheme]);
 let messages = ref([]);
-
-let connip = null;
-let connport = null;
 
 function addMessage(text, author = config.data.nickname, id = Date.now()) {
   messages.value.push({
@@ -23,12 +22,7 @@ function addMessage(text, author = config.data.nickname, id = Date.now()) {
 function sendMessage(text) {
   if (config.data.blurOnEnter) {ipc.blurWindow();}
   if (wsService.socket && !text.startsWith("!")) {
-    wsService.send({
-      type: "message",
-      author: config.data.nickname,
-      text: text,
-      id: Date.now()
-    });
+    api.sendMessage(config.data.nickname, text);
   } else {
     if (!text.startsWith("!")) {addMessage(text, config.data.nickname, Date.now());return}
     let cmd = text.replace("!", "").split(" ");
@@ -52,13 +46,11 @@ function sendMessage(text) {
       messages.value.splice(0, messages.value.length);
     } else
     if (cmd[0] == "reload") {
-      wsService.send({
-        type: "getHistory"
-      })
+      api.getHistory();
     } else
     if (cmd[0] == "con") {
       addMessage(`Подключение к ${cmd[1]}...`, "system")
-      wsService.connect(cmd[1]);
+      api.connect(cmd[1]);
     } else
     if (cmd[0] == "nick") {
       let nick = cmd[1];
@@ -83,13 +75,13 @@ function sendMessage(text) {
       let server = config.data.servers.at(Number(cmd[1]));
       if (server) {
         addMessage(`Подключение к ${server}...`, "system")
-        wsService.connect(server);
+        api.connect(server);
       } else {
         addMessage("Такого индекса нет в списке.", "system");
       }
     } else
     if (cmd[0] == "dcon") {
-      wsService.send({type: "disconnect"});
+      api.disconnect();
     } else
     if (cmd[0] == "restart") {
       ipc.restartApp();
@@ -98,12 +90,12 @@ function sendMessage(text) {
       ipc.openConfigFolder();
     } else
     if (cmd[0] == "exit") {
-      if (wsService.socket) {wsService.send({type: "disconnect"});}
+      if (wsService.socket) {api.disconnect();}
       window.close();
     } else
     if (cmd[0] == "list") {
       addMessage("Список серверов:", "system");
-      let i = 0;
+      let i = 0;s
       for (let server of config.data.servers) {
         addMessage(`#${i} - ${server}`, "system");
         i++;
@@ -122,17 +114,13 @@ function processWsData(data) {
   console.log(data);
   let content = data;
   if (content.type == "connaccept") {
-    addMessage(`Подключено к ${content.ip}:${content.port}.`);
+    addMessage(`Подключено к серверу.`);
     wsService.send({type: "getHistory"});
-    connip = content.ip;
-    connport = content.port;
   } else if (content.type == "connreject") {
-    addMessage(`Ошибка подключения к ${content.ip}:${content.port}.`);
+    addMessage(`Ошибка подключения к серверу.`);
     addMessage(` - ${content.error}`);
   } else if (content.type == "connclose") {
-    addMessage(`Сервер ${connip}:${connport} закрыл подключение.`);
-    connip = null;
-    connport = null;
+    addMessage(`Сервер закрыл подключение.`);
   } else if (content.type == "history") {
     messages.value.splice(0, messages.value.length);
     addMessage("Чат очищен. Загружается история чата сервера...", "system");
