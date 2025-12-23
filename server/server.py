@@ -67,15 +67,16 @@ class MUCOServer:
                                     int(time.time())
                                 ).wsPacket
                             )
-                        print(f"[msg::{packet['id']}]| {packet['author']}: {packet['text']}")
-                        self.history.append(packet.content)
-                        await self._broadcast(
-                            Message(
-                                packet["text"],
-                                packet["author"],
-                                packet["id"]
+                        else:
+                            print(f"[msg::{packet['id']}]| {packet['author']}: {packet['text']}")
+                            self.history.append(packet.content)
+                            await self._broadcast(
+                                Message(
+                                    packet["text"],
+                                    packet["author"],
+                                    packet["id"]
+                                )
                             )
-                        )
                     
                     elif packet.type == "getHistory":
                         await ws.send_str(
