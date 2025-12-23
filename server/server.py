@@ -1,10 +1,12 @@
-from core import DisconnectionAgree, Packet, Message, History, ConnectionAccept
+from core import ConnectionReject, DisconnectionAgree, Packet, Message, History, ConnectionAccept, ConnectionMeta
 
 import json, time
 from dataclasses import dataclass
 
 from aiohttp import web
 import aiohttp
+
+__version__ = "0.1.32"
 
 @dataclass
 class ServerConfig:
@@ -15,6 +17,7 @@ class ServerConfig:
     server_history_size: int = 1024
     server_path: str = "/"
     certs: tuple | None = None
+    allow_client_version: str = __version__
 
 class MUCOServer:
 
@@ -28,17 +31,45 @@ class MUCOServer:
         self.app.router.add_get(config.server_path, self._handler)
 
         self.history = []
+        self.connecting = set()
         self.clients = set()
 
     async def _broadcast(self, packet: Packet):
         for ws in self.clients.copy():
-            await ws.send_str(packet.wsPacket)
+            if ws.closed:
+                self.clients.discard(ws)
+            else:
+                await ws.send_str(packet.wsPacket)
     
     async def _unknownClient(self, ws):
-        self.clients.add(ws)
-        await ws.send_str(
-            ConnectionAccept().wsPacket
-        )
+
+        if ws not in self.connecting:
+            await ws.send_str(
+                ConnectionMeta(self.config.allow_client_version).wsPacket
+            )
+            self.connecting.add(ws)
+        
+        async for msg in ws:
+            
+            print(msg, msg.data)
+            data = json.loads(msg.data)
+            type = data["type"]
+            data.pop("type")
+            packet = Packet(type, **data)
+
+            if packet.type == "connmeta":
+                if packet["version"] == self.config.allow_client_version:
+                    await ws.send_str(
+                        ConnectionAccept().wsPacket
+                    )
+                    self.clients.add(ws)
+                else:
+                    await ws.send_str(
+                        ConnectionReject(f"version mismatch: client is {packet['version']}, server is {self.config.allow_client_version}").wsPacket
+                    )
+                self.connecting.discard(ws)
+            
+            return ws
 
     async def _handler(self, request):
         ws = web.WebSocketResponse()

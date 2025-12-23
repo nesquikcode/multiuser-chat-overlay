@@ -30,7 +30,7 @@ function sendMessage(text) {
       addMessage("[описание]", "[команда]");
       addMessage("Список команд", "help");
       addMessage("Поменять ник: nick [nick]", "nick");
-      addMessage("Очистить чат", "clean");
+      addMessage("Очистить чат", "clear");
       addMessage("Перезагрузить чат", "reload");
       addMessage("Список серверов", "list");
       addMessage("Добавить сервер в список серверов: add ws(s)://[ip(:port)]", "add");
@@ -42,7 +42,7 @@ function sendMessage(text) {
       addMessage("Перезапустить MUCO", "restart");
       addMessage("Выйти из MUCO", "exit");
     } else
-    if (cmd[0] == "clean") {
+    if (cmd[0] == "clear") {
       messages.value.splice(0, messages.value.length);
     } else
     if (cmd[0] == "reload") {
@@ -116,6 +116,8 @@ function processWsData(data) {
   if (content.type == "connaccept") {
     addMessage(`Подключено к серверу.`);
     wsService.send({type: "getHistory"});
+  } else if (content.type == "connmeta") {
+    api.sendMeta();
   } else if (content.type == "connreject") {
     addMessage(`Ошибка подключения к серверу.`);
     addMessage(` - ${content.error}`);

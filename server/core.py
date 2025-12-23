@@ -23,6 +23,11 @@ class Packet:
     @property
     def wsPacket(self): return json.dumps({"type": self.type, **self.content})
 
+class ConnectionMeta(Packet):
+
+    def __init__(self, version: str):
+        super().__init__("connmeta", **{"version": version})
+
 class ConnectionAccept(Packet):
 
     def __init__(self):

@@ -1,6 +1,16 @@
+import { version } from "dompurify";
+
 export class MUCOAPI {
     constructor(wsService) {
         this.ws = wsService;
+        this.protover = "0.1.32";
+    }
+
+    sendMeta() {
+        this.ws.send({
+            type: "connmeta",
+            version: this.protover
+        })
     }
 
     connect(url) {
