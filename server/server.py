@@ -1,6 +1,6 @@
 from core import DisconnectionAgree, Packet, Message, History, ConnectionAccept
 
-import json
+import json, time
 from dataclasses import dataclass
 
 from aiohttp import web
@@ -11,6 +11,7 @@ class ServerConfig:
     ip: str = "0.0.0.0"
     port: int = 5656
     server_size: int = 256
+    server_message_size: int = 8192
     server_history_size: int = 1024
     server_path: str = "/"
     certs: tuple | None = None
@@ -58,6 +59,15 @@ class MUCOServer:
                     packet = Packet(type, **data)
 
                     if packet.type == "message":
+                        if len(packet['text']) > self.config.server_message_size:
+                            await ws.send_str(
+                                Message(
+                                    f"Сообщение слишком длинное (>{self.config.server_message_size})",
+                                    "server",
+                                    int(time.time())
+                                ).wsPacket
+                            )
+                        print(f"[msg::{packet['id']}]| {packet['author']}: {packet['text']}")
                         self.history.append(packet.content)
                         await self._broadcast(
                             Message(
@@ -80,6 +90,7 @@ class MUCOServer:
                         )
                         self.clients.remove(ws)
                         await ws.close()
+                        break
                 
                 elif msg.type == aiohttp.WSMsgType.CLOSE:
                     self.clients.discard(ws)
@@ -107,7 +118,7 @@ class MUCOServer:
         ssl_context = None
         if self.config.certs:
             import ssl
-            ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+            ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
             ssl_context.load_cert_chain(*self.config.certs)
         
         web.run_app(
