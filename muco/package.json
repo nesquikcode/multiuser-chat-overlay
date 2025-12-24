@@ -1,6 +1,6 @@
 {
   "name": "muco",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "author": {
     "name": "nesquik"
   },
@@ -17,11 +17,14 @@
   },
   "main": "background.js",
   "dependencies": {
+    "@osmoscraft/node-feed-parser": "^0.0.3",
     "@vueuse/electron": "^14.1.0",
     "core-js": "^3.8.3",
     "dompurify": "^3.3.1",
+    "fast-xml-parser": "^5.3.3",
     "marked": "^17.0.1",
     "pinia": "^3.0.4",
+    "rss-parser": "^3.13.0",
     "vue": "^3.2.13"
   },
   "devDependencies": {

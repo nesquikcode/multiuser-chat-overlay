@@ -2,6 +2,7 @@
 
 import fs from 'fs'
 import path from 'path';
+import { Parser } from 'rss-parser';
 import { loadConfig, saveConfig, getConfig, getConfigPath } from './config/config'
 import { app, protocol, BrowserWindow, globalShortcut, ipcMain, shell } from 'electron'
 import { createProtocol } from 'vue-cli-plugin-electron-builder/lib'
@@ -87,6 +88,10 @@ async function createWindow() {
     win.loadURL('app://./index.html')
   }
 }
+
+ipcMain.handle('window:getVersion', () => {
+  return app.getVersion();
+})
 
 ipcMain.handle('fonts:list', () => {
   return fs

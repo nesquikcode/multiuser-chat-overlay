@@ -78,41 +78,43 @@ const defaultConfig = {
     blurOnEnter: true,
     servers: [], // ip addresses like "ws://127.0.0.1:1111"
     autoConnectTo: -1, // index of server, connect on startup, -1 for ignoring
-    autoReconnect: true
+    autoReconnect: true,
+    safeFormattingRender: true,
+    presets: {}
 }
 
 export function getConfigPath() {
-  return path.join(app.getPath('userData'), CONFIG_NAME)
+    return path.join(app.getPath('userData'), CONFIG_NAME)
 }
 
 export function loadConfig() {
-  if (cache) return cache
+    if (cache) return cache
 
-  const configPath = getConfigPath()
-  let userConfig = {}
+    const configPath = getConfigPath()
+    let userConfig = {}
 
-  if (fs.existsSync(configPath)) {
-    userConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-  }
+    if (fs.existsSync(configPath)) {
+        userConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    }
 
-  const merged = deepMerge(defaultConfig, userConfig)
+    const merged = deepMerge(defaultConfig, userConfig)
 
-  if (JSON.stringify(userConfig) !== JSON.stringify(merged)) {
-    fs.writeFileSync(configPath, JSON.stringify(merged, null, 2))
-  }
+    if (JSON.stringify(userConfig) !== JSON.stringify(merged)) {
+        fs.writeFileSync(configPath, JSON.stringify(merged, null, 2))
+    }
 
-  cache = merged
-  return cache
+    cache = merged
+    return cache
 }
 
 export function saveConfig(newConfig) {
-  const configPath = getConfigPath()
-  cache = newConfig
-  fs.writeFileSync(configPath, JSON.stringify(newConfig, null, 2))
+    const configPath = getConfigPath()
+    cache = newConfig
+    fs.writeFileSync(configPath, JSON.stringify(newConfig, null, 2))
 }
 
 export function getConfig() {
-  return cache || loadConfig()
+    return cache || loadConfig()
 }
 
 export function deepMerge(defaults, user) {

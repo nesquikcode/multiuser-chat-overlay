@@ -5,7 +5,6 @@ import { ref, computed, onMounted } from 'vue';
 import Chat from './components/Chat.vue';
 import { config, saveConfig } from '@/store/config'
 import { loadFonts } from './config/font';
-
 let theme = ref(config.data.themes[config.data.activeTheme]);
 let computedStyle = computed(() =>`
 --background: ${theme.value.base.basecolor};
@@ -34,8 +33,8 @@ onMounted(() => {
 #app {
   display: flex;
   position: relative;
-  width: 100vw;
-  height: 100vh;
+  width: 100dvw;
+  height: 100dvh;
 }
 </style>
 

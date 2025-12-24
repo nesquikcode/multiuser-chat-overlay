@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from aiohttp import web
 import aiohttp
 
-__version__ = "0.1.4"
+__version__ = "0.1.32"
 
 @dataclass
 class ServerConfig:

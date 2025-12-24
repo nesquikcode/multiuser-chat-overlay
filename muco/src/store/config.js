@@ -2,8 +2,8 @@ import { reactive, toRaw } from 'vue';
 import { ipc } from '@/services/ipc';
 
 export const config = reactive({
-    data: {},
-    ready: false
+  data: {},
+  ready: false
 });
 
 export async function loadConfig() {

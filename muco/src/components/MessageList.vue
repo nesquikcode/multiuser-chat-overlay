@@ -45,12 +45,11 @@ watch(
 .messages {
   display: flex;
   flex-direction: column;
-  width: 100%;
-  position: fixed;
+  width: 98%;
   overflow-x: hidden;
   overflow-y: auto;
-  top: 3%;
-  left: 3%;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .messages::-webkit-scrollbar {

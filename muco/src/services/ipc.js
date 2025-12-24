@@ -33,5 +33,9 @@ export const ipc = {
 
     openFontsFolder() {
         window.ipc.send('config:fontsFolder')
+    },
+
+    getVersion() {
+        return window.ipc.invoke('window:getVersion')
     }
 }
