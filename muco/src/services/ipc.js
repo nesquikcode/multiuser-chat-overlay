@@ -25,5 +25,13 @@ export const ipc = {
 
     blurWindow() {
         window.ipc.send('window:blur')
+    },
+
+    getFonts() {
+        return window.ipc.invoke('fonts:list')
+    },
+
+    openFontsFolder() {
+        window.ipc.send('config:fontsFolder')
     }
 }

@@ -43,6 +43,11 @@ class ConnectionClose(Packet):
     def __init__(self):
         super().__init__("connclose")
 
+class Disconnect(Packet):
+
+    def __init__(self):
+        super().__init__("disconnect")
+
 class DisconnectionAgree(Packet):
 
     def __init__(self):

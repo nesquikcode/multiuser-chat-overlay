@@ -53,11 +53,11 @@ let renderedContent = ref(renderMarkdownSafe(message.text));
 
 .content {
   overflow-wrap: break-word;
-  word-wrap: break-word;
-  white-space: pre-wrap;
   word-break: break-word;
-  width: 89%;
+  white-space: pre-wrap;
+  word-break: break-all;
   -webkit-app-region: no-drag;
+  width: 87%;
 }
 
 

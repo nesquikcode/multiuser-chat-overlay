@@ -1,11 +1,11 @@
 
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import Chat from './components/Chat.vue';
 import { config, saveConfig } from '@/store/config'
+import { loadFonts } from './config/font';
 
-console.log(config.data)
 let theme = ref(config.data.themes[config.data.activeTheme]);
 let computedStyle = computed(() =>`
 --background: ${theme.value.base.basecolor};
@@ -20,6 +20,10 @@ document.documentElement.style.setProperty("--color", theme.value.base.textcolor
 document.documentElement.style.setProperty("--font", theme.value.base.font);
 document.documentElement.style.setProperty("--fontsize", theme.value.base.fontsize);
 document.documentElement.style.setProperty("--bolddness", theme.value.base.fontboldness);
+
+onMounted(() => {
+  loadFonts();
+})
 
 </script>
 

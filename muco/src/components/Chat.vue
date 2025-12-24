@@ -10,6 +10,23 @@ import { MUCOAPI } from '@/services/api';
 let api = new MUCOAPI(wsService);
 let currentTheme = ref(config.data.themes[config.data.activeTheme]);
 let messages = ref([]);
+let connectedServer = "";
+let connected = false;
+let checker = null;
+
+function checkOnline() {
+  if (connected & (wsService.socket == null)) {
+    addMessage("Отключено от сервера.", "system", Date.now());
+    connected = false;
+
+    if (config.data.autoReconnect) {
+      addMessage("Переподключение к серверу...", "system", Date.now());
+      wsService.connect(connectedServer);
+    } else {
+      connectedServer = "";
+    }
+  }
+}
 
 function addMessage(text, author = config.data.nickname, id = Date.now()) {
   messages.value.push({
@@ -39,6 +56,7 @@ function sendMessage(text) {
       addMessage("Подключиться к серверу из списка: conl [index]", "conl");
       addMessage("Отключиться от сервера", "dcon");
       addMessage("Открыть конфиг MUCO", "config");
+      addMessage("Открыть папку шрифтов", "fonts");
       addMessage("Перезапустить MUCO", "restart");
       addMessage("Выйти из MUCO", "exit");
     } else
@@ -50,6 +68,7 @@ function sendMessage(text) {
     } else
     if (cmd[0] == "con") {
       addMessage(`Подключение к ${cmd[1]}...`, "system")
+      connectedServer = cmd[1];
       api.connect(cmd[1]);
     } else
     if (cmd[0] == "nick") {
@@ -74,6 +93,7 @@ function sendMessage(text) {
     if (cmd[0] == "conl") {
       let server = config.data.servers.at(Number(cmd[1]));
       if (server) {
+        connectedServer = server;
         addMessage(`Подключение к ${server}...`, "system")
         api.connect(server);
       } else {
@@ -88,6 +108,9 @@ function sendMessage(text) {
     } else
     if (cmd[0] == "config") {
       ipc.openConfigFolder();
+    } else
+    if (cmd[0] == "fonts") {
+      ipc.openFontsFolder();
     } else
     if (cmd[0] == "exit") {
       if (wsService.socket) {api.disconnect();}
@@ -114,6 +137,8 @@ function processWsData(data) {
   console.log(data);
   let content = data;
   if (content.type == "connaccept") {
+    connected = true;
+    checker = setInterval(checkOnline, 100);
     addMessage(`Подключено к серверу.`);
     wsService.send({type: "getHistory"});
   } else if (content.type == "connmeta") {
@@ -123,6 +148,9 @@ function processWsData(data) {
     addMessage(` - ${content.error}`);
   } else if (content.type == "connclose") {
     addMessage(`Сервер закрыл подключение.`);
+    connected = false;
+    connectedServer = "";
+    checker.close();
   } else if (content.type == "history") {
     messages.value.splice(0, messages.value.length);
     addMessage("Чат очищен. Загружается история чата сервера...", "system");
@@ -133,6 +161,9 @@ function processWsData(data) {
     addMessage(content.text, content.author, content.id);
   } else if (content.type == "dcon-agree") {
     addMessage("Отключено от сервера.", "system", Date.now());
+    connectedServer = "";
+    connected = false;
+    if (checker != null) {checker.close();}
   }
 }
 
@@ -153,7 +184,7 @@ if (config.data.servers.length > 0 && config.data.autoConnectTo != -1) {
   addMessage("Для подключения нужно настроить muco.json:", "setup");
   addMessage(" 1 - указать ник в nickname", "setup");
   addMessage(" 2 - добавить URL сервера в servers", "setup");
-  addMessage(" 3 - указать индекс URL сервера в autoConnectTo", "setup");
+  addMessage(" 3 - указать индекс сервера в autoConnectTo", "setup");
   addMessage("или", "");
   addMessage(" 1 - добавить сервер в список используя add", "setup");
   addMessage(" 2 - подключиться используя conl 0", "setup");

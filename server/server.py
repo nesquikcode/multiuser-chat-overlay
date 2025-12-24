@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from aiohttp import web
 import aiohttp
 
-__version__ = "0.1.32"
+__version__ = "0.1.4"
 
 @dataclass
 class ServerConfig:
@@ -51,7 +51,6 @@ class MUCOServer:
         
         async for msg in ws:
             
-            print(msg, msg.data)
             data = json.loads(msg.data)
             type = data["type"]
             data.pop("type")

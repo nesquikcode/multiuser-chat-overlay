@@ -1,5 +1,6 @@
 'use strict'
 
+import fs from 'fs'
 import path from 'path';
 import { loadConfig, saveConfig, getConfig, getConfigPath } from './config/config'
 import { app, protocol, BrowserWindow, globalShortcut, ipcMain, shell } from 'electron'
@@ -9,6 +10,9 @@ const isDevelopment = process.env.NODE_ENV !== 'production'
 
 let focused = false;
 let config = getConfig();
+
+const fontsDir = path.join(app.getPath('userData'), 'fonts')
+fs.mkdirSync(fontsDir, { recursive: true })
 
 // Scheme must be registered before the app is ready
 protocol.registerSchemesAsPrivileged([
@@ -30,11 +34,15 @@ async function createWindow() {
     webPreferences: {
       backgroundThrottling: false,
       preload: path.join(__dirname, 'preload.js'),
+      webSecurity: false,
       // Use pluginOptions.nodeIntegration, leave this alone
       // See nklayman.github.io/vue-cli-plugin-electron-builder/guide/security.html#node-integration for more info
       nodeIntegration: process.env.ELECTRON_NODE_INTEGRATION,
       contextIsolation: !process.env.ELECTRON_NODE_INTEGRATION
-    }
+    },
+    additionalArguments: [
+      `--fontsDir=${fontsDir}`
+    ]
   })
   win.setAlwaysOnTop(true, "screen-saver");
   win.setVisibleOnAllWorkspaces(true);
@@ -80,6 +88,16 @@ async function createWindow() {
   }
 }
 
+ipcMain.handle('fonts:list', () => {
+  return fs
+  .readdirSync(fontsDir)
+  .filter(f => /\.(ttf|otf|woff2?)$/i.test(f))
+  .map(file => ({
+    name: path.parse(file).name,
+    path: path.join(fontsDir, file)
+  }))
+})
+
 ipcMain.handle('config:get', () => {
   return getConfig()
 })
@@ -96,6 +114,10 @@ ipcMain.on('app:restart', () => {
 
 ipcMain.on('config:openFolder', () => {
   shell.openPath(getConfigPath())
+})
+
+ipcMain.on('config:fontsFolder', () => {
+  shell.openPath(fontsDir)
 })
 
 // Quit when all windows are closed.
