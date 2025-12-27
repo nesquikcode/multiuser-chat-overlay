@@ -27,6 +27,13 @@ onMounted(() => {
 </script>
 
 <style>
+a {
+  color: inherit;
+  transition: all 0.15s ease;
+}
+*:focus {
+  outline: none !important;
+}
 :root {
   overflow: hidden;
 }

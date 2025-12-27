@@ -37,5 +37,13 @@ export const ipc = {
 
     getVersion() {
         return window.ipc.invoke('window:getVersion')
+    },
+
+    checkUpdates() {
+        return window.ipc.invoke('window:checkUpdates')
+    },
+
+    updateToLatest() {
+        window.ipc.send('window:updateToLatest')
     }
 }

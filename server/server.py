@@ -139,6 +139,8 @@ class MUCOServer:
             print("-=-=-=-=-=-=-")
             print(f"Got Exception: {e}")
             print(f"WebSocket: {ws}")
+            self.clients.discard(ws)
+            self.connecting.discard(ws)
     
     def run(self):
         print(f"Starting MUCO server on {self.config.ip}:{self.config.port}.")

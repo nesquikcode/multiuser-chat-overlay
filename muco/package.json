@@ -1,6 +1,6 @@
 {
   "name": "muco",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "author": {
     "name": "nesquik"
   },
@@ -22,6 +22,7 @@
     "core-js": "^3.8.3",
     "dompurify": "^3.3.1",
     "fast-xml-parser": "^5.3.3",
+    "github-api": "^3.4.0",
     "marked": "^17.0.1",
     "pinia": "^3.0.4",
     "rss-parser": "^3.13.0",

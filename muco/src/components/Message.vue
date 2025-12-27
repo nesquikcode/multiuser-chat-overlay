@@ -63,7 +63,9 @@ if (config.data.safeFormattingRender) {
   overflow-wrap: break-word;
   word-break: break-word;
   white-space: pre-wrap;
-  word-break: break-all;
+  word-break: keep-all;
+  line-break: strict;
+  hyphens: auto;
   -webkit-app-region: no-drag;
   width: 87%;
 }

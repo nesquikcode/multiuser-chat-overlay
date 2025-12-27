@@ -80,7 +80,9 @@ const defaultConfig = {
     autoConnectTo: -1, // index of server, connect on startup, -1 for ignoring
     autoReconnect: true,
     safeFormattingRender: true,
-    presets: {}
+    presets: {},
+    checkUpdates: true,
+    autoUpdate: false
 }
 
 export function getConfigPath() {

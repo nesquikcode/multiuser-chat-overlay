@@ -2,7 +2,8 @@
 
 import fs from 'fs'
 import path from 'path';
-import { Parser } from 'rss-parser';
+import axios from 'axios'
+import { parseGitHubAtom, calculateVersionCode } from './utils/version'
 import { loadConfig, saveConfig, getConfig, getConfigPath } from './config/config'
 import { app, protocol, BrowserWindow, globalShortcut, ipcMain, shell } from 'electron'
 import { createProtocol } from 'vue-cli-plugin-electron-builder/lib'
@@ -50,6 +51,18 @@ async function createWindow() {
   win.setFullScreenable(false);
   win.focus();
 
+  app.on('web-contents-created', (event, contents) => {
+    contents.setWindowOpenHandler(({ url }) => {
+      shell.openExternal(url);
+      return { action: 'deny' };
+    });
+  });
+
+  win.webContents.on('will-navigate', (event, url) => {
+    event.preventDefault();
+    shell.openExternal(url);
+  });
+
   for (const keyBind of config.typeKeybinds) {
     globalShortcut.register(keyBind, () => {
       if (win) {
@@ -89,6 +102,68 @@ async function createWindow() {
   }
 }
 
+async function downloadFile(downloadUrl, to) {
+  try {
+    const response = await axios({
+      method: 'GET',
+      url: downloadUrl,
+      responseType: 'stream',
+      maxRedirects: 5,
+      headers: {
+        'User-Agent': `MUCO/${app.getVersion()}`
+      }
+    });
+    
+    const writer = fs.createWriteStream(to);
+    response.data.pipe(writer);
+    
+    return new Promise((resolve, reject) => {
+      writer.on('finish', () => {
+        writer.end();
+        const stats = fs.statSync(to);
+        resolve(stats.size);
+        return true;
+      });
+      
+      writer.on('error', reject);
+    });
+    
+  } catch (error) {
+    if (fs.existsSync(to)) {
+      fs.unlinkSync(to);
+    }
+    return false;
+  }
+}
+
+function checkLatest() {
+  const updateURL = "https://github.com/nesquikcode/multiuser-chat-overlay/releases.atom"
+  const localVersionCode = calculateVersionCode(app.getVersion());
+  return fetch(updateURL)
+    .then(response => response.text())
+    .then(xmlContent => parseGitHubAtom(xmlContent))
+    .then(releases => {
+      const latestRelease = releases.releases[0];
+      const isUpToDate = localVersionCode >= latestRelease.versionCode;
+      return {
+        isUpToDate,
+        latest: latestRelease
+      };
+    })
+    .catch(error => {
+      console.error('Ошибка при проверке обновлений:', error);
+      return {
+        isUpToDate: true,
+        latest: null,
+        error: error.message
+      };
+  });
+}
+
+ipcMain.handle('window:checkUpdates', () => {
+  return checkLatest();
+})
+
 ipcMain.handle('window:getVersion', () => {
   return app.getVersion();
 })
@@ -110,6 +185,18 @@ ipcMain.handle('config:get', () => {
 ipcMain.handle('config:set', (_, newConfig) => {
   saveConfig(newConfig)
   return true
+})
+
+ipcMain.on('window:updateToLatest', () => {
+  checkLatest().then(async (updates) => {
+    const dlLink = `https://github.com/nesquikcode/multiuser-chat-overlay/releases/download/${updates.latest.version}/muco.Setup.${updates.latest.version}.exe`
+    let ok = await downloadFile(dlLink, 'update.exe')
+
+    if (ok) {
+      shell.openPath('update.exe')
+    }
+    app.exit(0)
+  })
 })
 
 ipcMain.on('app:restart', () => {

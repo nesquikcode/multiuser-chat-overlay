@@ -42,7 +42,7 @@ function sendMessage(text) {
   if (wsService.socket && !text.startsWith("!")) {
     api.sendMessage(config.data.nickname, text);
   } else {
-    if (!text.startsWith("!")) {addMessage(text, config.data.nickname, Date.now());return}
+    if (!text.startsWith("!")) {addMessage(text, config.data.nickname);return}
     let cmd = text.replace("!", "").split(" ");
     if (cmd[0] == "help") {
       addMessage("[описание]", "[команда]");
@@ -162,7 +162,7 @@ function sendMessage(text) {
       }
     }
     else {
-      addMessage(text, config.data.nickname, Date.now());
+      addMessage(text, config.data.nickname);
     }
   }
 }
@@ -173,15 +173,15 @@ function processWsData(data) {
   if (content.type == "connaccept") {
     connected = true;
     checker = setInterval(checkOnline, 100);
-    addMessage(`Подключено к серверу.`);
+    addMessage(`Подключено к серверу.`, "system");
     wsService.send({type: "getHistory"});
   } else if (content.type == "connmeta") {
     api.sendMeta();
   } else if (content.type == "connreject") {
-    addMessage(`Ошибка подключения к серверу.`);
+    addMessage(`Ошибка подключения к серверу.`, "system");
     addMessage(` - ${content.error}`);
   } else if (content.type == "connclose") {
-    addMessage(`Сервер закрыл подключение.`);
+    addMessage(`Сервер закрыл подключение.`, "system");
     connected = false;
     connectedServer = "";
     checker.close();
@@ -194,7 +194,7 @@ function processWsData(data) {
   } else if (content.type == "message") {
     addMessage(content.text, content.author, content.id);
   } else if (content.type == "dcon-agree") {
-    addMessage("Отключено от сервера.", "system", Date.now());
+    addMessage("Отключено от сервера.", "system");
     connectedServer = "";
     connected = false;
     if (checker != null) {checker.close();}
@@ -217,18 +217,26 @@ onMounted(async () => {
     wsService.connect(config.data.servers[config.data.autoConnectTo]);
   } else {
     addMessage("Чат не подключен к серверу.", "setup");
-    addMessage("Для подключения нужно настроить muco.json:", "setup");
-    addMessage(" 1 - указать ник в nickname", "setup");
-    addMessage(" 2 - добавить URL сервера в servers", "setup");
-    addMessage(" 3 - указать индекс сервера в autoConnectTo", "setup");
-    addMessage("или", "");
-    addMessage(" 1 - добавить сервер в список используя add", "setup");
-    addMessage(" 2 - подключиться используя conl 0", "setup");
-    addMessage("-=-=-=-=-=-=-=-=-", "");
+    addMessage("Для настройки MUCO стоит прочитать <a href='https://github.com/nesquikcode/multiuser-chat-overlay/wiki/%D0%9A%D0%BE%D0%BD%D1%84%D0%B8%D0%B3-muco.json' target='_blank'>wiki по конфигу</a>.", "setup")
     addMessage("Активные бинды:", "system");
-    addMessage(" Enter - отправить сообщение", "system");
-    addMessage(` ${config.data.typeKeybinds.join(' ')} - переключить фокус чата`, "system");
+    addMessage("  Enter - отправить сообщение", "system");
+    addMessage(`  ${config.data.typeKeybinds.join(' ')} - переключить фокус чата`, "system");
     addMessage("Доп. команды: !help", "system");
+    if (config.data.checkUpdates) {
+      addMessage("Проверка обновлений...", "update")
+      let updates = await ipc.checkUpdates()
+      if (!updates.isUpToDate) {
+        addMessage(`Доступна новая версия MUCO - ${updates.latest.version}.`, "update")
+        if (config.data.autoUpdate) {
+          addMessage("Скачиваем последнюю версию, MUCO перезапустится для обновления.", "update")
+          ipc.updateToLatest()
+        } else {
+          addMessage(`Автообновление отключено. Скачать новую версию можно <a href='${updates.latest.link}' target='_blank'>вручную</a>.`, "update")
+        }
+      } else {
+      addMessage("MUCO последней версии, обновлений не требуется.", "update")
+      }
+    }
   }
 })
 </script>
