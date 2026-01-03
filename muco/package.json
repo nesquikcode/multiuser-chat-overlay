@@ -15,7 +15,7 @@
     "postinstall": "electron-builder install-app-deps",
     "postuninstall": "electron-builder install-app-deps"
   },
-  "main": "src/main/background.js",
+  "main": "background.js",
   "dependencies": {
     "@osmoscraft/node-feed-parser": "^0.0.3",
     "@vueuse/electron": "^14.1.0",
