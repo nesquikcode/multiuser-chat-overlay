@@ -1,22 +1,22 @@
 <script setup>
 import { ref, computed } from 'vue';
-import { config, saveConfig } from '@/store/config'
-import { renderMarkdownSafe, renderMarkdown } from '@/utils/markdown';
+import { config } from '@/renderer/store/config'
+import { renderMarkdownSafe, renderMarkdown } from '@/renderer/utils/markdown';
 
-let currentTheme = config.data.themes[config.data.activeTheme];
+let currentTheme = computed(() =>config.data.themes[config.data.activeTheme]);
 let authorTheme = computed(() => `
-  background: ${currentTheme.message.author.background};
-  color: ${currentTheme.message.author.textcolor};
-  font-family: ${currentTheme.message.author.font};
-  font-size: ${currentTheme.message.author.fontsize};
-  font-weight: ${currentTheme.message.author.fontboldness};
+  background: ${currentTheme.value.message.author.background};
+  color: ${currentTheme.value.message.author.textcolor};
+  font-family: ${currentTheme.value.message.author.font};
+  font-size: ${currentTheme.value.message.author.fontsize};
+  font-weight: ${currentTheme.value.message.author.fontboldness};
 `)
 let contentTheme = computed(() => `
-  background: ${currentTheme.message.content.background};
-  color: ${currentTheme.message.content.textcolor};
-  font-family: ${currentTheme.message.content.font};
-  font-size: ${currentTheme.message.content.fontsize};
-  font-weight: ${currentTheme.message.content.fontboldness};
+  background: ${currentTheme.value.message.content.background};
+  color: ${currentTheme.value.message.content.textcolor};
+  font-family: ${currentTheme.value.message.content.font};
+  font-size: ${currentTheme.value.message.content.fontsize};
+  font-weight: ${currentTheme.value.message.content.fontboldness};
 `)
 
 const props = defineProps({
@@ -39,7 +39,7 @@ if (config.data.safeFormattingRender) {
 </script>
 
 <template>
-  <div class="message">
+  <div class="message" ref="thisRef">
     <div class="author" :style="authorTheme" v-html="renderedAuthor"></div>
     <div class="author slicer" :style="authorTheme">: </div>
     <div class="content" :style="contentTheme" v-html="renderedContent"></div>
@@ -61,13 +61,12 @@ if (config.data.safeFormattingRender) {
 
 .content {
   overflow-wrap: break-word;
-  word-break: break-word;
   white-space: pre-wrap;
   word-break: keep-all;
   line-break: strict;
   hyphens: auto;
-  -webkit-app-region: no-drag;
   width: 87%;
+  -webkit-app-region: no-drag;
 }
 
 .content p {

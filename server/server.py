@@ -1,168 +1,356 @@
-from core import ConnectionReject, DisconnectionAgree, Packet, Message, History, ConnectionAccept, ConnectionMeta
+from core import ConnectionClose, ConnectionReject, DisconnectionAgree, Packet, Message, History, ConnectionAccept, ConnectionMeta, ClientData
 
-import json, time
-from dataclasses import dataclass
+import json, time, uuid, os, traceback, socket, logging
 
-from aiohttp import web
-import aiohttp
+from queue import SimpleQueue
+from logging.handlers import QueueHandler, QueueListener
+from datetime import datetime
+from aiofiles import open as asyncopen
+from pydantic import BaseModel
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.websockets import WebSocketState
+os.chdir(os.path.dirname(__file__))
+__version__ = "0.1.7"
 
-__version__ = "0.1.32"
+log_queue = SimpleQueue()
+queue_handler = QueueHandler(log_queue)
+loghandler = logging.StreamHandler()
+listener = QueueListener(log_queue, loghandler)
+listener.start()
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+logger.addHandler(queue_handler)
 
-@dataclass
-class ServerConfig:
+class ServerConfig(BaseModel):
     ip: str = "0.0.0.0"
     port: int = 5656
     server_size: int = 256
+    server_nickname: str = "server"
     server_message_size: int = 8192
     server_history_size: int = 1024
     server_path: str = "/"
     certs: tuple | None = None
     allow_client_version: str = __version__
 
-class MUCOServer:
+    @staticmethod
+    def load(file: str = 'muco-server.json'):
 
-    def __init__(
-            self,
-            config: ServerConfig
-    ):
-        self.config = config
-        self.address = (config.ip, config.port)
-        self.app = web.Application()
-        self.app.router.add_get(config.server_path, self._handler)
-
-        self.history = []
-        self.connecting = set()
-        self.clients = set()
-
-    async def _broadcast(self, packet: Packet):
-        for ws in self.clients.copy():
-            if ws.closed:
-                self.clients.discard(ws)
-            else:
-                await ws.send_str(packet.wsPacket)
-    
-    async def _unknownClient(self, ws):
-
-        if ws not in self.connecting:
-            await ws.send_str(
-                ConnectionMeta(self.config.allow_client_version).wsPacket
-            )
-            self.connecting.add(ws)
+        if os.path.exists(file):
+            with open(file, "rt", encoding="utf-8") as f:
+                data = f.read()
+        else:
+            cfg = ServerConfig()
+            cfg.save()
+            return cfg
         
-        async for msg in ws:
+        return ServerConfig(
+            **json.loads(data)
+        )
+    
+    def save(self, file: str = 'muco-server.json'):
+        with open(file, "w", encoding="utf-8") as f:
+            f.write(json.dumps(self.model_dump(), indent=4))
+
+messages = []
+connecting: set[ClientData] = set()
+clients: set[ClientData] = set()
+config = ServerConfig.load()
+
+def log(prefix: str, text: str):
+    logger.info(f"[{datetime.now().strftime('%H:%M:%S')}][{prefix}]: {text}")
+
+async def lifespan(app: FastAPI):
+    log("init", f"Starting MUCO Server ({__version__}) with config:")
+    log("init", f" - ip: {config.ip}")
+    log("init", f" - port: {config.port}")
+    log("init", f" - server_size: {config.server_size}")
+    log("init", f" - server_message_size: {config.server_message_size}")
+    log("init", f" - server_history_size: {config.server_history_size}")
+    log("init", f" - server_nickname: {config.server_nickname}")
+    log("init", f" - server_path: {config.server_path}")
+    log("init", f" - allow_client_version: {config.allow_client_version}")
+    log("init", f" - tls (certs): {'enabled' if config.certs is not None else 'disabled'}")
+
+    serverip = socket.gethostbyname(socket.gethostname())
+    log("init", f"Server is available using this link: ws{'s' if config.certs is not None else ''}://{serverip}:{config.port}{config.server_path}")
+    yield
+    log("shutdown", "Shutting down MUCO Server...")
+
+    for x in connecting:
+        await x.ws.send_text(
+            ConnectionClose(
+                x.server_uuid
+            ).wsPacket
+        )
+        await x.ws.close()
+
+    for x in clients:
+        await x.ws.send_text(
+            ConnectionClose(
+                x.server_uuid
+            ).wsPacket
+        )
+        await x.ws.close()
+    
+    config.save()
+    
+    log("shutdown", "Bye!")
+
+app = FastAPI(
+    title="MUCO WebSocket Server",
+    version=__version__,
+    lifespan=lifespan
+)
+
+async def broadcast(text: str, author: str, id: int):
+    for x in clients.copy():
+        if x.ws.client_state == WebSocketState.DISCONNECTED:
+            clients.discard(x)
+        else:
+            await x.ws.send_text(
+                Message(
+                    x.server_uuid,
+                    text,
+                    author,
+                    id
+                ).wsPacket
+            )
+
+@app.websocket(config.server_path)
+async def handler(ws: WebSocket):
+    await ws.accept()
+
+    server_uuid = uuid.uuid4().__str__()
+    await ws.send_text(
+        ConnectionMeta(
+            server_uuid,
+            version=config.allow_client_version
+        ).wsPacket
+    )
+
+    log("handler::preconn", f"New connection. Sent connmeta and generated server uuid: {server_uuid}.")
+
+    try:
+        while True:
+            data = json.loads(await ws.receive_text())
+            datatype = data.get("type")
+            client_uuid = data.get("uuid")
+
+            if datatype is None:
+                await ws.close(1000, "unknown packet type")
+                break
+            elif client_uuid is None:
+                log("handler::conn", "No UUID in packet. Rejecting and closing connection.")
+                await ws.send_text(
+                    ConnectionReject(
+                        server_uuid,
+                        "uuid required"
+                    ).wsPacket
+                )
+                await ws.close()
+                break
             
-            data = json.loads(msg.data)
-            type = data["type"]
+            client = None
+            for x in connecting.copy():
+                if x.ws == ws and x.client_uuid == client_uuid:
+                    client = x
+                    break
+            else:
+                for x in clients.copy():
+                    if x.ws == ws and x.client_uuid == client_uuid:
+                        client = x
+                        break
+
+            if client is None:
+                log("handler::conn", f"Unknown client detected. Processing to new client: {client_uuid} / {server_uuid}.")
+                client = ClientData(
+                    ws,
+                    client_uuid,
+                    server_uuid
+                )
+                connecting.add(client)
+            
             data.pop("type")
-            packet = Packet(type, **data)
+            data.pop("uuid")
+            packet = Packet(datatype, client_uuid, **data)
 
-            if packet.type == "connmeta":
-                if packet["version"] == self.config.allow_client_version:
-                    await ws.send_str(
-                        ConnectionAccept().wsPacket
-                    )
-                    self.clients.add(ws)
+            if client in connecting:
+                if packet.type == "connmeta":
+                    log("handler::connmeta", f"Got connmeta from {client.client_uuid} client.")
+                    if packet["version"] == config.allow_client_version:
+                        log("handler::connmeta", f"Client {client.client_uuid} using allowed version. Accepting connection.")
+                        await ws.send_text(
+                            ConnectionAccept(
+                                server_uuid
+                            ).wsPacket
+                        )
+                        connecting.discard(client)
+                        clients.add(client)
+                    else:
+                        log("handler::connmeta", f"Client {client.client_uuid} using wrong version - {packet['version']} ({config.allow_client_version} allowed). Rejecting connection.")
+                        connecting.discard(client)
+                        await ws.send_text(
+                            ConnectionReject(
+                                server_uuid,
+                                f"version mismatch: client is {packet['version']}, server is {config.allow_client_version}"
+                            ).wsPacket
+                        )
+                        await ws.close()
+                        break
                 else:
-                    await ws.send_str(
-                        ConnectionReject(f"version mismatch: client is {packet['version']}, server is {self.config.allow_client_version}").wsPacket
+                    log("handler::connmeta", f"Client {client.client_uuid} sent unknown packet type - {packet.type}. Closing connection.")
+                    connecting.discard(client)
+                    await ws.send_text(
+                        ConnectionClose(
+                            server_uuid
+                        ).wsPacket
                     )
-                self.connecting.discard(ws)
+                    await ws.close()
             
-            return ws
+            else:
+                if packet.type == "getHistory":
+                    log("handler::getHistory", f"Client {client.client_uuid} requested server history.")
+                    await ws.send_text(
+                        History(
+                            server_uuid,
+                            messages
+                        ).wsPacket
+                    )
+                elif packet.type == "message":
+                    log("handler::message", f"Client {client.client_uuid} sent a message.")
 
-    async def _handler(self, request):
-        ws = web.WebSocketResponse()
-        await ws.prepare(request)
+                    if packet["author"] == config.server_nickname:
+                        log("handler::message", f"Client's ({client.client_uuid}) message rejected for using server nickname - {packet['author']}.")
+                        await ws.send_text(
+                            Message(
+                                client.server_uuid,
+                                f"Имя '{config.server_nickname}' является серверным. Его нельзя использовать.",
+                                config.server_nickname,
+                                int(time.time())
+                            ).wsPacket
+                        )
+                    
+                    elif len(packet["text"]) > config.server_message_size:
+                        log("handler::message", f"Client's ({client.client_uuid}) message too big - {len(packet['text'])}, max allowed is {config.server_message_size}.")
+                        await ws.send_text(
+                            Message(
+                                client.server_uuid,
+                                f"Сообщение слишком большое (>{config.server_message_size}).",
+                                config.server_nickname,
+                                int(time.time())
+                            ).wsPacket
+                        )
 
-        try:
+                    else:
+                        log(f"chat / {client.client_uuid}::{packet['author']}", f"{packet['text']}")
+                        messages.append(packet.content)
+                        if len(messages) > config.server_history_size:
+                            messages.pop(0)
+                        
+                        client.lastnickname = packet["author"]
+                        await broadcast(
+                            packet["text"],
+                            packet["author"],
+                            packet["id"]
+                        )
+                
+                elif packet.type == "privateMessage":
+                    log("handler::privateMessage", f"Client {client.client_uuid} requested private message ('{packet['author']}'->'{packet['touser']}').")
 
-            if ws not in self.clients:
-                await self._unknownClient(ws)
-
-            async for msg in ws:
-
-                if msg.type in (aiohttp.WSMsgType.TEXT, aiohttp.WSMsgType.BINARY):
-
-                    data = json.loads(msg.data)
-                    type = data["type"]
-                    data.pop("type")
-                    packet = Packet(type, **data)
-
-                    if packet.type == "message":
-                        if len(packet['text']) > self.config.server_message_size:
-                            await ws.send_str(
+                    if config.server_nickname in [packet['author'], packet['touser']]:
+                        log("handler::privateMessage", f"Client's ({client.client_uuid}) private message rejected for using server nickname.")
+                        await ws.send_text(
+                            Message(
+                                client.server_uuid,
+                                f"Имя '{config.server_nickname}' является серверным. Его нельзя использовать.",
+                                config.server_nickname,
+                                int(time.time())
+                            ).wsPacket
+                        )
+                    
+                    else:
+                        touser = None
+                        for x in clients:
+                            if x.lastnickname == packet["touser"]:
+                                touser = x
+                                break
+                        
+                        if touser is None:
+                            log("handler::privateMessage", f"Client's ({client.client_uuid}) private message can't delivered, touser is unknown client.")
+                            await ws.send_text(
                                 Message(
-                                    f"Сообщение слишком длинное (>{self.config.server_message_size})",
-                                    "server",
+                                    client.server_uuid,
+                                    f"Пользователь '{packet['touser']}' не найден.",
+                                    config.server_nickname,
                                     int(time.time())
                                 ).wsPacket
                             )
                         else:
-                            print(f"[msg::{packet['id']}]| {packet['author']}: {packet['text']}")
-                            self.history.append(packet.content)
-                            await self._broadcast(
+                            log(f"privateChat / {client.client_uuid}::{packet['author']}->{packet['touser']}", f"{packet['text']}")
+                            await ws.send_text(
                                 Message(
+                                    client.server_uuid,
                                     packet["text"],
-                                    packet["author"],
-                                    packet["id"]
-                                )
+                                    f"{packet['author']} -> {packet['touser']}",
+                                    int(time.time())
+                                ).wsPacket
                             )
-                    
-                    elif packet.type == "getHistory":
-                        await ws.send_str(
-                            History(
-                                self.history
-                            ).wsPacket
-                        )
-                    
-                    elif packet.type == "disconnect":
-                        await ws.send_str(
-                            DisconnectionAgree().wsPacket
-                        )
-                        self.clients.remove(ws)
-                        await ws.close()
-                        break
+                            await touser.ws.send_text(
+                                Message(
+                                    client.server_uuid,
+                                    packet["text"],
+                                    f"{packet['touser']} <- {packet['author']}",
+                                    int(time.time())
+                                ).wsPacket
+                            )
                 
-                elif msg.type == aiohttp.WSMsgType.CLOSE:
-                    self.clients.discard(ws)
-                
-                elif msg.type == aiohttp.WSMsgType.ERROR:
-                    self.clients.discard(ws)
+                elif packet.type == "disconnect":
+                    log("handler::disconnect", f"Client {client.client_uuid} disconnected.")
+                    clients.discard(client)
+                    await ws.send_text(
+                        DisconnectionAgree(
+                            client.server_uuid
+                        ).wsPacket
+                    )
                     await ws.close()
-                
-                elif msg.type == aiohttp.WSMsgType.PING:
-                    await ws.pong()
-                
-            return ws
-        
-        except Exception as e:
-            print("-=-=-=-=-=-=-")
-            print(f"Got Exception: {e}")
-            print(f"WebSocket: {ws}")
-            self.clients.discard(ws)
-            self.connecting.discard(ws)
+                    break
     
-    def run(self):
-        print(f"Starting MUCO server on {self.config.ip}:{self.config.port}.")
-        print(f"Server path: {self.config.server_path}")
-        print(f"Server size: {self.config.server_size}")
-        print(f"History size: {self.config.server_history_size}")
-        
-        ssl_context = None
-        if self.config.certs:
-            import ssl
-            ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-            ssl_context.load_cert_chain(*self.config.certs)
-        
-        web.run_app(
-            self.app,
-            host=self.config.ip,
-            port=self.config.port,
-            ssl_context=ssl_context
-        )
+    except WebSocketDisconnect:
+        log("handler::info", "Websocket disconnected, discarding client.")
+        for client in clients.copy():
+            if ws == client.ws:
+                clients.discard(client)
+                break
+
+    except Exception as e:
+        log("handler::err", f"Got exception: {e}")
+        async with asyncopen(f"exception-{int(time.time())}.log", "w") as f:
+            await f.write(f"Error log on {datetime.now().strftime('%d-%m-%y at %H:%M:%S')}.\n\n{traceback.format_exc()}")
 
 if __name__ == "__main__":
-    server = MUCOServer(
-        ServerConfig()
-    )
-    server.run()
+    from uvicorn import Server, Config
+
+    if config.certs is None:
+        cfg = Config(
+            app,
+                config.ip,
+                config.port,
+                workers=1
+            )
+    else:
+        cfg = Config(
+            app,
+                config.ip,
+                config.port,
+                workers=1,
+                ssl_certfile=config.certs[0],
+                ssl_keyfile=config.certs[1],
+                access_log=False
+            )
+    
+    server = Server(cfg)
+
+    try:
+        server.run()
+    except KeyboardInterrupt:
+        server.should_exit = True

@@ -1,5 +1,5 @@
 import { reactive, toRaw } from 'vue';
-import { ipc } from '@/services/ipc';
+import { ipc } from '@/renderer/services/ipc';
 
 export const config = reactive({
   data: {},

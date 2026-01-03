@@ -1,14 +1,31 @@
 
 import json
+from fastapi import WebSocket
+
+class ClientData:
+
+    def __init__(
+            self,
+            websocket: WebSocket,
+            uuid: str,
+            server_uuid: str,
+            nickname: str | None = None
+    ):
+        self.ws = websocket
+        self.server_uuid = server_uuid
+        self.client_uuid = uuid
+        self.lastnickname = nickname
 
 class Packet:
     
     def __init__(
             self,
             type: str,
+            uuid: str,
             **content
     ):
         self.type = type
+        self.uuid = uuid
         self.content = content
 
     def __setitem__(self, key, item):
@@ -18,52 +35,52 @@ class Packet:
         return self.content[key]
     
     @property
-    def wsJSON(self): return {"type": self.type, **self.content}
+    def wsJSON(self): return {"type": self.type, "uuid": self.uuid, **self.content}
 
     @property
-    def wsPacket(self): return json.dumps({"type": self.type, **self.content})
+    def wsPacket(self): return json.dumps({"type": self.type, "uuid": self.uuid, **self.content})
 
 class ConnectionMeta(Packet):
 
-    def __init__(self, version: str):
-        super().__init__("connmeta", **{"version": version})
+    def __init__(self, uuid: str, version: str):
+        super().__init__("connmeta", uuid, **{"version": version})
 
 class ConnectionAccept(Packet):
 
-    def __init__(self):
-        super().__init__("connaccept")
+    def __init__(self, uuid: str):
+        super().__init__("connaccept", uuid)
 
 class ConnectionReject(Packet):
 
-    def __init__(self, error: str):
-        super().__init__("connreject", **{"error": error})
+    def __init__(self, uuid: str, error: str):
+        super().__init__("connreject", uuid, **{"error": error})
 
 class ConnectionClose(Packet):
 
-    def __init__(self):
-        super().__init__("connclose")
+    def __init__(self, uuid: str):
+        super().__init__("connclose", uuid)
 
 class Disconnect(Packet):
 
-    def __init__(self):
-        super().__init__("disconnect")
+    def __init__(self, uuid: str):
+        super().__init__("disconnect", uuid)
 
 class DisconnectionAgree(Packet):
 
-    def __init__(self):
-        super().__init__("dcon-agree")
+    def __init__(self, uuid: str):
+        super().__init__("dcon-agree", uuid)
 
 class GetHistory(Packet):
 
-    def __init__(self, lastmsg: int = 512):
-        super().__init__("getHistory", **{"from": lastmsg})
+    def __init__(self, uuid: str, lastmsg: int = 512):
+        super().__init__("getHistory", uuid, **{"from": lastmsg})
 
 class History(Packet):
 
-    def __init__(self, messages: list):
-        super().__init__("history", **{"messages": messages})
+    def __init__(self, uuid: str, messages: list):
+        super().__init__("history", uuid, **{"messages": messages})
 
 class Message(Packet):
 
-    def __init__(self, text: str, author: str, id: int):
-        super().__init__("message", **{"text": text, "author": author, "id": id})
+    def __init__(self, uuid: str, text: str, author: str, id: int):
+        super().__init__("message", uuid, **{"text": text, "author": author, "id": id})

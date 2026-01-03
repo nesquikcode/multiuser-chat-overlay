@@ -1,4 +1,4 @@
-import { ipc } from '@/services/ipc'
+import { ipc } from '@/renderer/services/ipc'
 
 function filePathToUrl(filePath) {
   return new URL(`file://${filePath}`).href

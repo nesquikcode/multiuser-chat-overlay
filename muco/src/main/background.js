@@ -3,8 +3,8 @@
 import fs from 'fs'
 import path from 'path';
 import axios from 'axios'
-import { parseGitHubAtom, calculateVersionCode } from './utils/version'
-import { loadConfig, saveConfig, getConfig, getConfigPath } from './config/config'
+import { parseGitHubAtom, calculateVersionCode } from '@/main/utils/version'
+import { saveConfig, getConfig, getConfigPath } from '@/main/config/config'
 import { app, protocol, BrowserWindow, globalShortcut, ipcMain, shell } from 'electron'
 import { createProtocol } from 'vue-cli-plugin-electron-builder/lib'
 import installExtension, { VUEJS3_DEVTOOLS } from 'electron-devtools-installer'

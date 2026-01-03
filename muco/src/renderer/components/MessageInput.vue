@@ -1,8 +1,8 @@
 <script setup>
 import { computed, ref, onMounted, onUnmounted, nextTick, defineEmits } from 'vue';
-import { config, saveConfig } from '@/store/config'
+import { config } from '@/renderer/store/config'
 
-let theme = ref(config.data.themes[config.data.activeTheme]);
+let theme = computed(() => config.data.themes[config.data.activeTheme]);
 let inputTheme = computed(() => `
   width: ${theme.value.input.width};
   height: ${theme.value.input.height};
@@ -58,13 +58,13 @@ function downHistory() {
 }
 
 onMounted(() => {
-  window.addEventListener('type-event', onTypeEvent);
-  window.addEventListener('stop-type-event', onStopTypeEvent);
+  globalThis.addEventListener('type-event', onTypeEvent);
+  globalThis.addEventListener('stop-type-event', onStopTypeEvent);
 });
 
 onUnmounted(() => {
-  window.removeEventListener('type-event', onTypeEvent);
-  window.removeEventListener('stop-type-event', onStopTypeEvent);
+  globalThis.removeEventListener('type-event', onTypeEvent);
+  globalThis.removeEventListener('stop-type-event', onStopTypeEvent);
 });
 
 </script>

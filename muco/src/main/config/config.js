@@ -9,6 +9,7 @@ const defaultConfig = {
     height: 296,
     width: 384,
     nickname: "user",
+    commandPrefix: "!",
     themes: {
         "dark" : {
             base: {
@@ -82,7 +83,10 @@ const defaultConfig = {
     safeFormattingRender: true,
     presets: {},
     checkUpdates: true,
-    autoUpdate: false
+    autoUpdate: false,
+    loadServerHistoryFrom: 1024,
+    maxVisibleMessages: 384,
+    onMessageSound: null
 }
 
 export function getConfigPath() {

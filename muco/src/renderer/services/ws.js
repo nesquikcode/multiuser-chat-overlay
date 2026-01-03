@@ -1,6 +1,7 @@
 class WSService {
   socket = null
   listeners = new Set()
+  lastsent = 0;
 
   connect(url) {
     if (this.socket) return
@@ -8,7 +9,7 @@ class WSService {
     this.socket = new WebSocket(url)
 
     this.socket.onopen = () => {
-      console.log('[WS] connected')
+      console.log('[wsService]: Connected.')
     }
 
     this.socket.onmessage = (event) => {
@@ -17,18 +18,22 @@ class WSService {
     }
 
     this.socket.onclose = () => {
-      console.log('[WS] closed')
+      console.log('[wsService]: Connection closed.')
       this.socket = null
     }
 
     this.socket.onerror = (e) => {
-      console.error('[WS] error', e)
+      console.error('[wsService]: Got websocket error:', e)
     }
   }
 
   send(data) {
     if (this.socket?.readyState === WebSocket.OPEN) {
+      console.log(`[ws::send]: Sending '${data.type}' packet:`, data)
       this.socket.send(JSON.stringify(data))
+      if ((data.id != undefined && data.id != null) && typeof data.id == "number") {
+        this.lastsent = data.id;
+      }
     }
   }
 

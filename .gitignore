@@ -139,6 +139,7 @@ dist
 __pycache__/
 .venv
 muco.json
+muco-server.json
 cert.pem
 key.pem
 server.zip

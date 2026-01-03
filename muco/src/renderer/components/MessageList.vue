@@ -1,7 +1,7 @@
 <script setup>
 import { computed, nextTick, watch, ref } from 'vue';
-import Message from './Message.vue';
-import { config, saveConfig } from '@/store/config'
+import Message from '@/renderer/components/Message.vue';
+import { config } from '@/renderer/store/config'
 
 const props = defineProps({
     messages: {
@@ -32,7 +32,7 @@ watch(
 </script>
 
 <template>
-  <div class="messages" :style="chatHeight" ref="messagesRef">
+  <div class="messages" id="messages" :style="chatHeight" ref="messagesRef">
     <Message
       v-for="msg in messages"
       :key="msg.id"
