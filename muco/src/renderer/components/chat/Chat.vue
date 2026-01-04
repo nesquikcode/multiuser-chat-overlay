@@ -40,10 +40,8 @@ onMounted(async () => {
     chat.addMessage("  Enter - отправить сообщение", "system");
     chat.addMessage(`  ${config.data.typeKeybinds.join(' ')} - переключить фокус чата`, "system");
     chat.addMessage(`Доп. команды: ${config.data.commandPrefix}help`, "system");
-    if (config.data.checkUpdates) {
-      await checkUpdates(chat);
-    }
   }
+  checkUpdates(chat);
 })
 </script>
 
