@@ -108,7 +108,7 @@ export class MUCOData {
         this.api = new MUCOAPI();
 
         this.config = config;
-        this.protover = "0.1.7";
+        this.protover = "0.1.71";
 
         this.clientUUID = crypto.randomUUID();
         this.serverUUID = null;

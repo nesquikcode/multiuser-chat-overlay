@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.websockets import WebSocketState
 os.chdir(os.path.dirname(__file__))
-__version__ = "0.1.7"
+__version__ = "0.1.71"
 
 log_queue = SimpleQueue()
 queue_handler = QueueHandler(log_queue)
