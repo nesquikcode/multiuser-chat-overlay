@@ -1,4 +1,4 @@
-from core import ConnectionClose, ConnectionReject, DisconnectionAgree, Packet, Message, History, ConnectionAccept, ConnectionMeta, ClientData
+from core import ConnectionClose, ConnectionReject, DisconnectionAgree, NicknameChange, Packet, Message, History, ConnectionAccept, ConnectionMeta, ClientData
 
 import json, time, uuid, os, traceback, socket, logging
 
@@ -124,7 +124,8 @@ async def handler(ws: WebSocket):
     await ws.send_text(
         ConnectionMeta(
             server_uuid,
-            version=config.allow_client_version
+            config.allow_client_version,
+            config.server_nickname
         ).wsPacket
     )
 
@@ -177,6 +178,19 @@ async def handler(ws: WebSocket):
             if client in connecting:
                 if packet.type == "connmeta":
                     log("handler::connmeta", f"Got connmeta from {client.client_uuid} client.")
+                    
+                    for x in clients:
+                        if x.nickname == packet["nickname"]:
+                            log("handler::connmeta", f"Client {client.client_uuid} using same nickname as {x.client_uuid}. Rejecting connection.")
+                            await ws.send_text(
+                                ConnectionReject(
+                                    client.server_uuid,
+                                    "nickname already taken, change nickname"
+                                ).wsPacket
+                            )
+                            await ws.close()
+                            break
+                    
                     if packet["version"] == config.allow_client_version:
                         log("handler::connmeta", f"Client {client.client_uuid} using allowed version. Accepting connection.")
                         await ws.send_text(
@@ -185,6 +199,8 @@ async def handler(ws: WebSocket):
                             ).wsPacket
                         )
                         connecting.discard(client)
+
+                        client.nickname = packet["nickname"]
                         clients.add(client)
                     else:
                         log("handler::connmeta", f"Client {client.client_uuid} using wrong version - {packet['version']} ({config.allow_client_version} allowed). Rejecting connection.")
@@ -242,15 +258,14 @@ async def handler(ws: WebSocket):
                         )
 
                     else:
-                        log(f"chat / {client.client_uuid}::{packet['author']}", f"{packet['text']}")
+                        log(f"chat / {client.client_uuid}::{client.nickname}", f"{packet['text']}")
                         messages.append(packet.content)
                         if len(messages) > config.server_history_size:
                             messages.pop(0)
                         
-                        client.lastnickname = packet["author"]
                         await broadcast(
                             packet["text"],
-                            packet["author"],
+                            client.nickname,
                             packet["id"]
                         )
                 
@@ -271,7 +286,7 @@ async def handler(ws: WebSocket):
                     else:
                         touser = None
                         for x in clients:
-                            if x.lastnickname == packet["touser"]:
+                            if x.nickname == packet["touser"]:
                                 touser = x
                                 break
                         
@@ -286,12 +301,12 @@ async def handler(ws: WebSocket):
                                 ).wsPacket
                             )
                         else:
-                            log(f"privateChat / {client.client_uuid}::{packet['author']}->{packet['touser']}", f"{packet['text']}")
+                            log(f"privateChat / {client.client_uuid}::{client.nickname}->{touser.nickname}", f"{packet['text']}")
                             await ws.send_text(
                                 Message(
                                     client.server_uuid,
                                     packet["text"],
-                                    f"{packet['author']} -> {packet['touser']}",
+                                    f"{client.nickname} -> {touser.nickname}",
                                     int(time.time())
                                 ).wsPacket
                             )
@@ -299,7 +314,7 @@ async def handler(ws: WebSocket):
                                 Message(
                                     client.server_uuid,
                                     packet["text"],
-                                    f"{packet['touser']} <- {packet['author']}",
+                                    f"{touser.nickname} <- {client.nickname}",
                                     int(time.time())
                                 ).wsPacket
                             )
@@ -314,6 +329,29 @@ async def handler(ws: WebSocket):
                     )
                     await ws.close()
                     break
+
+                elif packet.type == "nickchange":
+                    log("handler::disconnect", f"Client {client.client_uuid} requested nickname change ({client.nickname}->{packet['nickname']}).")
+
+                    for x in clients:
+                        if x.nickname == packet['nickname']:
+                            await ws.send_text(
+                                Message(
+                                    client.server_uuid,
+                                    "Ник уже используется другим пользователем.",
+                                    config.server_nickname,
+                                    int(time.time())
+                                ).wsPacket
+                            )
+                            break
+                    else:
+                        client.nickname = packet['nickname']
+                        await ws.send_text(
+                            NicknameChange(
+                                client.server_uuid,
+                                packet['nickname']
+                            ).wsPacket
+                        )
     
     except WebSocketDisconnect:
         log("handler::info", "Websocket disconnected, discarding client.")

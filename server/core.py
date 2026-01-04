@@ -14,7 +14,7 @@ class ClientData:
         self.ws = websocket
         self.server_uuid = server_uuid
         self.client_uuid = uuid
-        self.lastnickname = nickname
+        self.nickname = nickname
 
 class Packet:
     
@@ -42,8 +42,8 @@ class Packet:
 
 class ConnectionMeta(Packet):
 
-    def __init__(self, uuid: str, version: str):
-        super().__init__("connmeta", uuid, **{"version": version})
+    def __init__(self, uuid: str, version: str, nickname: str):
+        super().__init__("connmeta", uuid, **{"version": version, "nickname": nickname})
 
 class ConnectionAccept(Packet):
 
@@ -84,3 +84,8 @@ class Message(Packet):
 
     def __init__(self, uuid: str, text: str, author: str, id: int):
         super().__init__("message", uuid, **{"text": text, "author": author, "id": id})
+
+class NicknameChange(Packet):
+
+    def __init__(self, uuid: str, nickname: str):
+        super().__init__("nickchange", uuid, **{"nickname": nickname})

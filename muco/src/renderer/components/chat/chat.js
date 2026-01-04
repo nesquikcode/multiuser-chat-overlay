@@ -133,9 +133,14 @@ class CommandHandler {
         if (args.length < 1) {this.chat.addMessage("Некорректное использование команды.", "system"); return}
        
         let nick = args.join(' ');
-        this.config.data.nickname = nick;
-        saveConfig();
-        this.chat.addMessage(`Ник изменен на '${nick}'.`, "system");
+
+        if (this.chat.sender.data.serverUUID == null) {
+            this.config.data.nickname = nick;
+            saveConfig();
+            this.chat.addMessage(`Ник изменен на '${nick}'.`, "system");
+        } else {
+            this.chat.sender.changeNickname(nick);
+        }
     }
 
     addHandler(args) {

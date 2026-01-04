@@ -1,11 +1,13 @@
 import { checkOnline } from "@/renderer/utils/utils";
+import { saveConfig } from "@/renderer/store/config";
 
 export class MUCOAPI {
     constructor() {}
 
-    connmeta(protover, uuid) {
+    connmeta(nick, protover, uuid) {
         return {
             type: "connmeta",
+            nickname: nick,
             version: protover,
             uuid: uuid
         }
@@ -89,6 +91,14 @@ export class MUCOAPI {
             messages: messages
         }
     }
+
+    nickchange(uuid, nick) {
+        return {
+            type: "nickchange",
+            uuid: uuid,
+            nickname: nick
+        }
+    }
 }
 
 export class MUCOData {
@@ -161,6 +171,12 @@ export class MUCOSender {
         }
     }
 
+    changeNickname(nick) {
+        this.ws.send(
+            this.data.api.nickchange(this.data.clientUUID, nick)
+        )
+    }
+
     disconnect() {
         this.ws.send(
             this.data.api.disconnect(this.data.clientUUID)
@@ -190,6 +206,7 @@ export class MUCOReceiver {
         this.data.serverUUID = packet.uuid;
         this.ws.send(
             this.data.api.connmeta(
+                this.config.data.nickname,
                 this.data.protover,
                 this.data.clientUUID
             )
@@ -264,6 +281,12 @@ export class MUCOReceiver {
         this.data.serverUUID = null;
     }
 
+    nickchangeHandler(packet) {
+        this.config.data.nickname = packet.nickname;
+        saveConfig();
+        this.data.chat.addMessage(`Ник изменен на '${packet.nickname}'.`, "system");
+    }
+
     dataHandler(data) {
         let packet = data;
         if (this.serverUUID != null && this.serverUUID != content.uuid) {
@@ -280,6 +303,7 @@ export class MUCOReceiver {
             case 'history': this.historyHandler(packet); break;
             case 'message': this.messageHandler(packet); break;
             case 'dcon-agree': this.dconagreeHandler(packet); break;
+            case 'nickchange': this.nickchangeHandler(packet); break;
             default: console.log(`[receiver]: Unknown packet type '${packet.type}'.`)
         }
     }
