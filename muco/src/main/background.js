@@ -5,6 +5,7 @@ import path from 'path';
 import axios from 'axios'
 import { parseGitHubAtom, calculateVersionCode } from '@/main/utils/version'
 import { saveConfig, getConfig, getConfigPath } from '@/main/config/config'
+import { sendTransparentKey } from '@/main/utils/utils';
 import { app, protocol, BrowserWindow, globalShortcut, ipcMain, shell } from 'electron'
 import { createProtocol } from 'vue-cli-plugin-electron-builder/lib'
 import installExtension, { VUEJS3_DEVTOOLS } from 'electron-devtools-installer'
@@ -66,6 +67,10 @@ async function createWindow() {
   for (const keyBind of config.typeKeybinds) {
     globalShortcut.register(keyBind, () => {
       if (win) {
+        if (config.disableBindWhenTyping && focused) {
+          sendTransparentKey(win, keyBind);
+          return;
+        }
         if (focused) {
           console.log("[event]: stop-type-event");
           win.webContents.send('stop-type-event');
@@ -128,7 +133,7 @@ async function downloadFile(downloadUrl, to) {
       writer.on('error', reject);
     });
     
-  } catch (error) {
+  } catch {
     if (fs.existsSync(to)) {
       fs.unlinkSync(to);
     }

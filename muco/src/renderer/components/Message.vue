@@ -3,7 +3,7 @@ import { ref, computed } from 'vue';
 import { config } from '@/renderer/store/config'
 import { renderMarkdownSafe, renderMarkdown } from '@/renderer/utils/markdown';
 
-let currentTheme = computed(() =>config.data.themes[config.data.activeTheme]);
+let currentTheme = computed(() => config.data.themes[config.data.activeTheme]);
 let authorTheme = computed(() => `
   background: ${currentTheme.value.message.author.background};
   color: ${currentTheme.value.message.author.textcolor};

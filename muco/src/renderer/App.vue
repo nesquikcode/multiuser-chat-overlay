@@ -1,10 +1,9 @@
-
-
 <script setup>
 import { computed, onMounted } from 'vue';
 import Chat from '@/renderer/components/chat/Chat.vue';
 import { config } from '@/renderer/store/config'
 import { loadFonts } from '@/renderer/config/font';
+let settingExpanded = ref(false);
 let theme = computed(() => config.data.themes[config.data.activeTheme]);
 let computedStyle = computed(() =>`
 --background: ${theme.value.base.basecolor};
@@ -40,5 +39,10 @@ a {
 </style>
 
 <template>
-  <Chat v-if="config.ready" :style="computedStyle"/>
+  <Chat
+    v-if="config.ready && !settingExpanded.value"
+    :style="computedStyle"
+    :settingExpanded="settingExpanded"
+    @set-setting-expanded="settingExpanded.value = $event"
+  />
 </template>

@@ -66,8 +66,7 @@ class CommandHandler {
         this.chat.addMessage("Подключиться к серверу: con ws(s)://[ip(:port)]", "con");
         this.chat.addMessage("Подключиться к серверу из списка: conl [index]", "conl");
         this.chat.addMessage("Отключиться от сервера", "dcon");
-        this.chat.addMessage("Открыть конфиг MUCO", "config");
-        this.chat.addMessage("Изменить параметр конфига", "setting");
+        this.chat.addMessage("Управление конфигом", "config");
         this.chat.addMessage("Проверить обновления MUCO", "updates");
         this.chat.addMessage("Обновить MUCO до последней версии", "upgrade");
         this.chat.addMessage("Открыть папку шрифтов", "fonts");
@@ -173,8 +172,11 @@ class CommandHandler {
         }
     }
 
-    settingHandler(args) {
-        if (args.length < 2) {addMessage("Некорректное использование команды.", "system"); return}
+    configHandler(args) {
+        if (args.length < 1) {this.chat.addMessage("Некорректное использование команды.", "system"); return}
+        else if (args.length == 1 && args[0] == "open") {
+            ipc.openConfigFolder(); return
+        }
         
         let type = args[0];
         let setting = args[1];
@@ -295,8 +297,7 @@ class CommandHandler {
             case 'conl': this.conlHandler(args); break;
             case 'dcon': this.chat.sender.disconnect(); break;
             case 'restart': ipc.restartApp(); break;
-            case 'config': ipc.openConfigFolder(); break;
-            case 'setting': this.settingHandler(args); break;
+            case 'config': this.configHandler(args); break;
             case 'updates': checkUpdates(this.chat); break;
             case 'upgrade': this.upgradeHandler(); break;
             case 'fonts': ipc.openFontsFolder(); break;

@@ -77,6 +77,7 @@ const defaultConfig = {
     "'"
     ],
     blurOnEnter: true,
+    disableBindWhenTyping: false,
     servers: [], // ip addresses like "ws://127.0.0.1:1111"
     autoConnectTo: -1, // index of server, connect on startup, -1 for ignoring
     autoReconnect: true,
@@ -86,7 +87,8 @@ const defaultConfig = {
     autoUpdate: false,
     loadServerHistoryFrom: 1024,
     maxVisibleMessages: 384,
-    onMessageSound: null
+    onMessageSound: null,
+    onMessageSoundVolume: 100
 }
 
 export function getConfigPath() {

@@ -7,7 +7,7 @@ import { config } from '@/renderer/store/config';
 import { ipc } from '@/renderer/services/ipc';
 import { MUCOReceiver, MUCOSender, MUCOData } from '@/renderer/services/api';
 import { Chat } from '@/renderer/components/chat/chat';
-import { checkUpdates } from '@/renderer/utils/utils';
+import { checkUpdates } from '@/renderer/utils/utils';с
 
 let data = new MUCOData(wsService, config)
 
@@ -17,7 +17,6 @@ let sender = new MUCOSender(data);
 let messages = ref([]);
 let chat = new Chat(sender, config, wsService, messages);
 data.chat = chat;
-
 
 let currentTheme = computed(() => config.data.themes[config.data.activeTheme]);
 let chatTheme = computed(() => `

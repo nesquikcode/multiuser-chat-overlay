@@ -1,3 +1,4 @@
+import asyncio
 from core import ConnectionClose, ConnectionReject, DisconnectionAgree, NicknameChange, Packet, Message, History, ConnectionAccept, ConnectionMeta, ClientData
 
 import json, time, uuid, os, traceback, socket, logging
@@ -31,6 +32,7 @@ class ServerConfig(BaseModel):
     server_path: str = "/"
     certs: tuple | None = None
     allow_client_version: str = __version__
+    allow_server_actual_version: bool = True
 
     @staticmethod
     def load(file: str = 'muco-server.json'):
@@ -55,6 +57,8 @@ messages = []
 connecting: set[ClientData] = set()
 clients: set[ClientData] = set()
 config = ServerConfig.load()
+if config.allow_server_actual_version:
+    config.allow_client_version = __version__
 
 def log(prefix: str, text: str):
     logger.info(f"[{datetime.now().strftime('%H:%M:%S')}][{prefix}]: {text}")
@@ -103,18 +107,23 @@ app = FastAPI(
 )
 
 async def broadcast(text: str, author: str, id: int):
+
+    tasks = []
     for x in clients.copy():
         if x.ws.client_state == WebSocketState.DISCONNECTED:
             clients.discard(x)
         else:
-            await x.ws.send_text(
-                Message(
-                    x.server_uuid,
-                    text,
-                    author,
-                    id
-                ).wsPacket
+            tasks.append(
+                x.ws.send_text(
+                    Message(
+                        x.server_uuid,
+                        text,
+                        author,
+                        id
+                    ).wsPacket
+                )
             )
+    await asyncio.gather(*tasks, return_exceptions=True)
 
 @app.websocket(config.server_path)
 async def handler(ws: WebSocket):
@@ -136,6 +145,10 @@ async def handler(ws: WebSocket):
             data = json.loads(await ws.receive_text())
             datatype = data.get("type")
             client_uuid = data.get("uuid")
+
+            data.pop("type")
+            data.pop("uuid")
+            packet = Packet(datatype, client_uuid, **data)
 
             if datatype is None:
                 await ws.close(1000, "unknown packet type")
@@ -170,10 +183,6 @@ async def handler(ws: WebSocket):
                     server_uuid
                 )
                 connecting.add(client)
-            
-            data.pop("type")
-            data.pop("uuid")
-            packet = Packet(datatype, client_uuid, **data)
 
             if client in connecting:
                 if packet.type == "connmeta":
@@ -306,7 +315,7 @@ async def handler(ws: WebSocket):
                                 Message(
                                     client.server_uuid,
                                     packet["text"],
-                                    f"{client.nickname} -> {touser.nickname}",
+                                    f"{touser.nickname}<=",
                                     int(time.time())
                                 ).wsPacket
                             )
@@ -314,7 +323,7 @@ async def handler(ws: WebSocket):
                                 Message(
                                     client.server_uuid,
                                     packet["text"],
-                                    f"{touser.nickname} <- {client.nickname}",
+                                    f"{client.nickname}=>",
                                     int(time.time())
                                 ).wsPacket
                             )

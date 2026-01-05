@@ -2,8 +2,8 @@ import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 
 marked.setOptions({
-  breaks: true,
-  gfm: true
+  gfm: true,
+  breaks: false,
 })
 
 export function renderMarkdown(text) {

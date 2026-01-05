@@ -1,5 +1,6 @@
 import { checkOnline } from "@/renderer/utils/utils";
 import { saveConfig } from "@/renderer/store/config";
+import { shallowRef, watch } from "vue";
 
 export class MUCOAPI {
     constructor() {}
@@ -192,13 +193,32 @@ export class MUCOReceiver {
 
         this.ws.subscribe((data) => {this.dataHandler(data)});
 
-        this.audio = null;
-        if (this.config.data.onMessageSound != null) {
-            this.audio = new Audio();
-            this.audio.src = this.config.data.onMessageSound;
-            this.audio.load();
-            console.log("[audio]: onMessage initialized:", this.audio)
-        }
+        this.audio = shallowRef(null)
+        watch(
+        () => [
+            this.config.data.onMessageSound,
+            this.config.data.onMessageSoundVolume
+        ],
+        ([src, volume]) => {
+            try {
+                if (this.audio.value) {
+                this.audio.value.pause();
+                this.audio.value.src = '';
+                this.audio.value = null;
+                }
+
+                if (!src) return;
+
+                const a = new Audio(src);
+                a.volume = Math.min(volume / 100, 1.0);
+                this.audio.value = a;
+                console.log(`[audio]: updated audio, sound is ${this.audio.value.src}, volume is ${this.audio.value.volume}.`)
+            } catch {
+                this.data.chat.addMessage("Не удалось загрузить onMessageSound.")
+            }
+        },
+        { immediate: true }
+        )
     }
 
     connmetaHandler(packet) {
@@ -236,6 +256,7 @@ export class MUCOReceiver {
     connrejectHandler(packet) {
         this.data.chat.addMessage(`Ошибка подключения к ${this.data.connectedTo}.`, "system");
         this.data.chat.addMessage(`- ${packet.error}`, "system");
+        this.data.isConnected = false;
         this.data.serverUUID = null;
         this.data.connectedTo = null;
         this.data.checker = null;
@@ -244,9 +265,9 @@ export class MUCOReceiver {
     conncloseHandler(packet) {
         this.data.chat.addMessage(`Сервер закрыл подключение.`, "system");
         this.data.isConnected = false;
-        this.data.checker = null;
-        this.data.connectedTo = null;
         this.data.serverUUID = null;
+        this.data.connectedTo = null;
+        this.data.checker = null;
     }
 
     historyHandler(packet) {
@@ -263,22 +284,22 @@ export class MUCOReceiver {
 
     messageHandler(packet) {
         this.data.chat.addMessage(packet.text, packet.author, packet.id);
-        if (this.audio != null && this.data.wsService.lastsent != packet.id) {
+        if (this.audio.value != null && this.data.wsService.lastsent != packet.id) {
             console.log(this.data.wsService.lastsent, packet.id)
-            if (!this.audio.paused && !this.audio.ended && this.audio.currentTime > 0) {
-                this.audio.pause();
-                this.audio.currentTime = 0;
+            if (!this.audio.value.paused && !this.audio.value.ended && this.audio.value.currentTime > 0) {
+                this.audio.value.pause();
+                this.audio.value.currentTime = 0;
             }
-            this.audio.play();
+            this.audio.value.play();
         }
     }
 
     dconagreeHandler(packet) {
         this.data.chat.addMessage("Отключено от сервера.", "system");
         this.data.isConnected = false;
-        this.data.checker = null;
-        this.data.connectedTo = null;
         this.data.serverUUID = null;
+        this.data.connectedTo = null;
+        this.data.checker = null;
     }
 
     nickchangeHandler(packet) {
