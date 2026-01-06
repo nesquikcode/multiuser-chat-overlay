@@ -1,0 +1,15 @@
+{
+    "id" : "example",
+    "name" : "Example Plugin",
+    "description" : "An example of server plugin for MUCO.",
+    "version" : "1.0.0",
+    "links" : {
+        "github" : null,
+        "gitlab" : null,
+        "bitbucket" : null
+    },
+    "manifest" : {
+        "main" : "main.py",
+        "entry" : "plugin"
+    }
+}

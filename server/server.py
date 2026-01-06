@@ -1,8 +1,10 @@
 import asyncio
+import importlib.util
 from core import ConnectionClose, ConnectionReject, DisconnectionAgree, NicknameChange, Packet, Message, History, ConnectionAccept, ConnectionMeta, ClientData
 
-import json, time, uuid, os, traceback, socket, logging
+import json, time, uuid, os, traceback, socket, logging, importlib, sys
 
+import logging
 from queue import SimpleQueue
 from logging.handlers import QueueHandler, QueueListener
 from datetime import datetime
@@ -12,15 +14,6 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.websockets import WebSocketState
 os.chdir(os.path.dirname(__file__))
 __version__ = "0.1.71"
-
-log_queue = SimpleQueue()
-queue_handler = QueueHandler(log_queue)
-loghandler = logging.StreamHandler()
-listener = QueueListener(log_queue, loghandler)
-listener.start()
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-logger.addHandler(queue_handler)
 
 class ServerConfig(BaseModel):
     ip: str = "0.0.0.0"
@@ -33,6 +26,9 @@ class ServerConfig(BaseModel):
     certs: tuple | None = None
     allow_client_version: str = __version__
     allow_server_actual_version: bool = True
+    plugins_directory: str = os.path.abspath(os.path.join(os.path.dirname(__file__), "plugins"))
+    errorlog_directory: str = os.path.abspath(os.path.join(os.path.dirname(__file__), "errors"))
+    log_level: int = logging.INFO
 
     @staticmethod
     def load(file: str = 'muco-server.json'):
@@ -53,32 +49,127 @@ class ServerConfig(BaseModel):
         with open(file, "w", encoding="utf-8") as f:
             f.write(json.dumps(self.model_dump(), indent=4))
 
-messages = []
+messages: list[dict] = []
 connecting: set[ClientData] = set()
 clients: set[ClientData] = set()
 config = ServerConfig.load()
+plugins = []
 if config.allow_server_actual_version:
     config.allow_client_version = __version__
 
-def log(prefix: str, text: str):
-    logger.info(f"[{datetime.now().strftime('%H:%M:%S')}][{prefix}]: {text}")
+log_queue = SimpleQueue()
+queue_handler = QueueHandler(log_queue)
+loghandler = logging.StreamHandler()
+loghandler.setFormatter(
+    logging.Formatter(
+        fmt="[%(asctime)s][%(name)s]: %(message)s",
+        datefmt="%H:%M:%S"
+    )
+)
+listener = QueueListener(log_queue, loghandler)
+listener.start()
+
+initlogger = logging.getLogger("init")
+pluginslogger = logging.getLogger("plugins")
+shutdownlogger = logging.getLogger("shutdown")
+wslogger = logging.getLogger("ws")
+
+for x in (initlogger, pluginslogger, shutdownlogger, wslogger):
+    x.setLevel(config.log_level)
+    x.addHandler(queue_handler)
+
+def process_event(etype: str, etrigger: str | None = None, *args, **kwargs):
+    for x in plugins:
+        for ev in x["obj"].events:
+            if ev.etype == etype and ev.etrigger == etrigger:
+                if ev.etype in ["on_startup", "on_shutdown"]:
+                    try:
+                        cb = ev.callback(config, x["logger"])
+                        if not cb:
+                            pluginslogger.warning(f"Callback returns False in {x['id']}.")
+                    except Exception as e:
+                        pluginslogger.error(f"Got exception when processing {ev.etype} event in {x['id']} plugin: {e}")
+                elif ev.etype == "on_packet":
+                    try:
+                        cb = ev.callback(config, x["logger"], *args, **kwargs)
+                        if not cb:
+                            pluginslogger.warning(f"Callback returns False in {x['id']}.")
+                    except Exception as e:
+                        pluginslogger.error(f"Got exception when processing {ev.etype} event in {x['id']} plugin: {e}")
+                else:
+                    pluginslogger.warning(f"Can't process event for plugin '{x['name']}', invalid etype - {ev.etype}.")
 
 async def lifespan(app: FastAPI):
-    log("init", f"Starting MUCO Server ({__version__}) with config:")
-    log("init", f" - ip: {config.ip}")
-    log("init", f" - port: {config.port}")
-    log("init", f" - server_size: {config.server_size}")
-    log("init", f" - server_message_size: {config.server_message_size}")
-    log("init", f" - server_history_size: {config.server_history_size}")
-    log("init", f" - server_nickname: {config.server_nickname}")
-    log("init", f" - server_path: {config.server_path}")
-    log("init", f" - allow_client_version: {config.allow_client_version}")
-    log("init", f" - tls (certs): {'enabled' if config.certs is not None else 'disabled'}")
+    initlogger.info(f"Starting MUCO Server ({__version__}) with config:")
+    initlogger.debug( f" - ip: {config.ip}")
+    initlogger.debug(f" - port: {config.port}")
+    initlogger.debug(f" - server_size: {config.server_size}")
+    initlogger.debug(f" - server_message_size: {config.server_message_size}")
+    initlogger.debug(f" - server_history_size: {config.server_history_size}")
+    initlogger.debug(f" - server_nickname: {config.server_nickname}")
+    initlogger.debug(f" - server_path: {config.server_path}")
+    initlogger.debug(f" - allow_client_version: {config.allow_client_version}")
+    initlogger.debug(f" - tls (certs): {'enabled' if config.certs is not None else 'disabled'}")
+    os.makedirs(config.plugins_directory, exist_ok=True)
+    os.makedirs(config.errorlog_directory, exist_ok=True)
+
+    pluginslogger.info("Loading plugins...")
+    sys.path.insert(0, config.plugins_directory)
+    for plugin in os.listdir(config.plugins_directory):
+        plugincfg = os.path.join(config.plugins_directory, plugin, "index.json")
+        if os.path.exists(plugincfg):
+            with open(plugincfg) as f:
+                data = json.load(f)
+
+                id = data.get("id")
+                name = data.get("name")
+                description = data.get("description")
+                version = data.get("version")
+                manifest = data.get("manifest")
+                if None in [id, name, description, version, manifest]:
+                    pluginslogger.error(f"Can't load {plugin}, invalid index.json.")
+                else:
+                    mainfile = manifest.get("main")
+                    entry = manifest.get("entry")
+                    if None in [mainfile, entry]:
+                        pluginslogger.warning(f"Can't load {plugin}, invalid manifest.")
+                    else:
+                        try:
+                            spec = importlib.util.spec_from_file_location(
+                                f"{plugin}.{entry.removesuffix('.py')}",
+                                os.path.abspath(os.path.join(config.plugins_directory, plugin, mainfile))
+                            )
+                            module = importlib.util.module_from_spec(spec)
+                            module.__package__ = plugin
+                            spec.loader.exec_module(module)
+                            pluginobj = getattr(module, entry)
+
+                            pluginlogger = logging.getLogger(f"plugins::{id}")
+                            pluginlogger.setLevel(config.log_level)
+                            pluginlogger.addHandler(queue_handler)
+
+                            plugins.append({
+                                "id" : id,
+                                "name" : name,
+                                "version" : version,
+                                "obj" : pluginobj,
+                                "logger" : pluginlogger
+                            })
+                            pluginslogger.info(f"Loaded '{plugin}' plugin.")
+                        except Exception as e:
+                            pluginslogger.error(f"Can't load {plugin}, invalid manifest values (wrong entry?): {e}")       
+        else:
+            pluginslogger.warning(f"Ignoring '{plugin}' (index.json not found).")
+    sys.path.pop(0)
+    pluginslogger.info("Initializing plugins...")
+    process_event("on_startup")
 
     serverip = socket.gethostbyname(socket.gethostname())
-    log("init", f"Server is available using this link: ws{'s' if config.certs is not None else ''}://{serverip}:{config.port}{config.server_path}")
+    pluginslogger.info(f"Server link: ws{'s' if config.certs is not None else ''}://{serverip}:{config.port}{config.server_path}")
+    initlogger.info("Done! Server started.")
     yield
-    log("shutdown", "Shutting down MUCO Server...")
+    shutdownlogger.info("Shutting down MUCO Server...")
+    process_event("on_shutdown")
 
     for x in connecting:
         await x.ws.send_text(
@@ -98,7 +189,7 @@ async def lifespan(app: FastAPI):
     
     config.save()
     
-    log("shutdown", "Bye!")
+    shutdownlogger.info("Bye!")
 
 app = FastAPI(
     title="MUCO WebSocket Server",
@@ -138,7 +229,7 @@ async def handler(ws: WebSocket):
         ).wsPacket
     )
 
-    log("handler::preconn", f"New connection. Sent connmeta and generated server uuid: {server_uuid}.")
+    wslogger.debug(f"New connection. Sent connmeta and generated server uuid: {server_uuid}.")
 
     try:
         while True:
@@ -154,7 +245,7 @@ async def handler(ws: WebSocket):
                 await ws.close(1000, "unknown packet type")
                 break
             elif client_uuid is None:
-                log("handler::conn", "No UUID in packet. Rejecting and closing connection.")
+                wslogger.debug("No UUID in packet. Rejecting and closing connection.")
                 await ws.send_text(
                     ConnectionReject(
                         server_uuid,
@@ -176,7 +267,7 @@ async def handler(ws: WebSocket):
                         break
 
             if client is None:
-                log("handler::conn", f"Unknown client detected. Processing to new client: {client_uuid} / {server_uuid}.")
+                wslogger.debug(f"Unknown client detected. Processing to new client: {client_uuid} / {server_uuid}.")
                 client = ClientData(
                     ws,
                     client_uuid,
@@ -184,13 +275,14 @@ async def handler(ws: WebSocket):
                 )
                 connecting.add(client)
 
+            await asyncio.to_thread(process_event, "on_packet", packet.type, packet, ws)
             if client in connecting:
                 if packet.type == "connmeta":
-                    log("handler::connmeta", f"Got connmeta from {client.client_uuid} client.")
+                    wslogger.debug(f"Got connmeta from {client.client_uuid} client.")
                     
                     for x in clients:
                         if x.nickname == packet["nickname"]:
-                            log("handler::connmeta", f"Client {client.client_uuid} using same nickname as {x.client_uuid}. Rejecting connection.")
+                            wslogger.debug(f"Client {client.client_uuid} using same nickname as {x.client_uuid}. Rejecting connection.")
                             await ws.send_text(
                                 ConnectionReject(
                                     client.server_uuid,
@@ -201,7 +293,7 @@ async def handler(ws: WebSocket):
                             break
                     
                     if packet["version"] == config.allow_client_version:
-                        log("handler::connmeta", f"Client {client.client_uuid} using allowed version. Accepting connection.")
+                        wslogger.debug(f"Client {client.client_uuid} using allowed version. Accepting connection.")
                         await ws.send_text(
                             ConnectionAccept(
                                 server_uuid
@@ -212,7 +304,7 @@ async def handler(ws: WebSocket):
                         client.nickname = packet["nickname"]
                         clients.add(client)
                     else:
-                        log("handler::connmeta", f"Client {client.client_uuid} using wrong version - {packet['version']} ({config.allow_client_version} allowed). Rejecting connection.")
+                        wslogger.debug(f"Client {client.client_uuid} using wrong version - {packet['version']} ({config.allow_client_version} allowed). Rejecting connection.")
                         connecting.discard(client)
                         await ws.send_text(
                             ConnectionReject(
@@ -223,7 +315,7 @@ async def handler(ws: WebSocket):
                         await ws.close()
                         break
                 else:
-                    log("handler::connmeta", f"Client {client.client_uuid} sent unknown packet type - {packet.type}. Closing connection.")
+                    wslogger.debug(f"Client {client.client_uuid} sent unknown packet type - {packet.type}. Closing connection.")
                     connecting.discard(client)
                     await ws.send_text(
                         ConnectionClose(
@@ -234,7 +326,7 @@ async def handler(ws: WebSocket):
             
             else:
                 if packet.type == "getHistory":
-                    log("handler::getHistory", f"Client {client.client_uuid} requested server history.")
+                    wslogger.debug(f"Client {client.client_uuid} requested server history.")
                     await ws.send_text(
                         History(
                             server_uuid,
@@ -242,10 +334,10 @@ async def handler(ws: WebSocket):
                         ).wsPacket
                     )
                 elif packet.type == "message":
-                    log("handler::message", f"Client {client.client_uuid} sent a message.")
+                    wslogger.debug(f"Client {client.client_uuid} sent a message.")
 
                     if packet["author"] == config.server_nickname:
-                        log("handler::message", f"Client's ({client.client_uuid}) message rejected for using server nickname - {packet['author']}.")
+                        wslogger.debug(f"Client's ({client.client_uuid}) message rejected for using server nickname - {packet['author']}.")
                         await ws.send_text(
                             Message(
                                 client.server_uuid,
@@ -256,7 +348,7 @@ async def handler(ws: WebSocket):
                         )
                     
                     elif len(packet["text"]) > config.server_message_size:
-                        log("handler::message", f"Client's ({client.client_uuid}) message too big - {len(packet['text'])}, max allowed is {config.server_message_size}.")
+                        wslogger.debug(f"Client's ({client.client_uuid}) message too big - {len(packet['text'])}, max allowed is {config.server_message_size}.")
                         await ws.send_text(
                             Message(
                                 client.server_uuid,
@@ -267,7 +359,7 @@ async def handler(ws: WebSocket):
                         )
 
                     else:
-                        log(f"chat / {client.client_uuid}::{client.nickname}", f"{packet['text']}")
+                        wslogger.debug(f"chat / {client.client_uuid}::{client.nickname}: {packet['text']}")
                         messages.append(packet.content)
                         if len(messages) > config.server_history_size:
                             messages.pop(0)
@@ -279,10 +371,10 @@ async def handler(ws: WebSocket):
                         )
                 
                 elif packet.type == "privateMessage":
-                    log("handler::privateMessage", f"Client {client.client_uuid} requested private message ('{packet['author']}'->'{packet['touser']}').")
+                    wslogger.debug(f"Client {client.client_uuid} requested private message ('{packet['author']}'->'{packet['touser']}').")
 
                     if config.server_nickname in [packet['author'], packet['touser']]:
-                        log("handler::privateMessage", f"Client's ({client.client_uuid}) private message rejected for using server nickname.")
+                        wslogger.debug(f"Client's ({client.client_uuid}) private message rejected for using server nickname.")
                         await ws.send_text(
                             Message(
                                 client.server_uuid,
@@ -300,7 +392,7 @@ async def handler(ws: WebSocket):
                                 break
                         
                         if touser is None:
-                            log("handler::privateMessage", f"Client's ({client.client_uuid}) private message can't delivered, touser is unknown client.")
+                            wslogger.debug(f"Client's ({client.client_uuid}) private message can't delivered, touser is unknown client.")
                             await ws.send_text(
                                 Message(
                                     client.server_uuid,
@@ -310,7 +402,7 @@ async def handler(ws: WebSocket):
                                 ).wsPacket
                             )
                         else:
-                            log(f"privateChat / {client.client_uuid}::{client.nickname}->{touser.nickname}", f"{packet['text']}")
+                            wslogger.debug(f"privateChat / {client.client_uuid}::{client.nickname}->{touser.nickname}: {packet['text']}")
                             await ws.send_text(
                                 Message(
                                     client.server_uuid,
@@ -329,7 +421,7 @@ async def handler(ws: WebSocket):
                             )
                 
                 elif packet.type == "disconnect":
-                    log("handler::disconnect", f"Client {client.client_uuid} disconnected.")
+                    wslogger.debug(f"Client {client.client_uuid} disconnected.")
                     clients.discard(client)
                     await ws.send_text(
                         DisconnectionAgree(
@@ -340,7 +432,7 @@ async def handler(ws: WebSocket):
                     break
 
                 elif packet.type == "nickchange":
-                    log("handler::disconnect", f"Client {client.client_uuid} requested nickname change ({client.nickname}->{packet['nickname']}).")
+                    wslogger.debug(f"Client {client.client_uuid} requested nickname change ({client.nickname}->{packet['nickname']}).")
 
                     for x in clients:
                         if x.nickname == packet['nickname']:
@@ -363,15 +455,15 @@ async def handler(ws: WebSocket):
                         )
     
     except WebSocketDisconnect:
-        log("handler::info", "Websocket disconnected, discarding client.")
+        wslogger.debug("Websocket disconnected, discarding client.")
         for client in clients.copy():
             if ws == client.ws:
                 clients.discard(client)
                 break
 
     except Exception as e:
-        log("handler::err", f"Got exception: {e}")
-        async with asyncopen(f"exception-{int(time.time())}.log", "w") as f:
+        wslogger.debug(f"Got exception: {e}")
+        async with asyncopen(os.path.join(config.errorlog_directory, f"exception-{int(time.time())}.log"), "w") as f:
             await f.write(f"Error log on {datetime.now().strftime('%d-%m-%y at %H:%M:%S')}.\n\n{traceback.format_exc()}")
 
 if __name__ == "__main__":
