@@ -7,7 +7,7 @@ import { config } from '@/renderer/store/config';
 import { ipc } from '@/renderer/services/ipc';
 import { MUCOReceiver, MUCOSender, MUCOData } from '@/renderer/services/api';
 import { Chat } from '@/renderer/components/chat/chat';
-import { checkUpdates } from '@/renderer/utils/utils';с
+import { checkUpdates } from '@/renderer/utils/utils';
 
 let data = new MUCOData(wsService, config)
 
