@@ -91,7 +91,7 @@ def process_event(etype: str, etrigger: str | None = None, *args, **kwargs):
                         pluginslogger.error(f"Got exception when processing {ev.etype} event in {x['id']} plugin: {e}")
                 elif ev.etype == "on_packet":
                     try:
-                        cb = ev.callback(config, x["logger"], *args, **kwargs)
+                        cb = ev.callback(config, x["logger"], clients, messages, *args, **kwargs)
                         if not cb:
                             pluginslogger.warning(f"Callback returns False in {x['id']}.")
                     except Exception as e:
@@ -101,7 +101,7 @@ def process_event(etype: str, etrigger: str | None = None, *args, **kwargs):
 
 async def lifespan(app: FastAPI):
     initlogger.info(f"Starting MUCO Server ({__version__}) with config:")
-    initlogger.debug( f" - ip: {config.ip}")
+    initlogger.debug(f" - ip: {config.ip}")
     initlogger.debug(f" - port: {config.port}")
     initlogger.debug(f" - server_size: {config.server_size}")
     initlogger.debug(f" - server_message_size: {config.server_message_size}")
@@ -373,7 +373,7 @@ async def handler(ws: WebSocket):
                 elif packet.type == "privateMessage":
                     wslogger.debug(f"Client {client.client_uuid} requested private message ('{packet['author']}'->'{packet['touser']}').")
 
-                    if config.server_nickname in [packet['author'], packet['touser']]:
+                    if config.server_nickname == packet['author']:
                         wslogger.debug(f"Client's ({client.client_uuid}) private message rejected for using server nickname.")
                         await ws.send_text(
                             Message(

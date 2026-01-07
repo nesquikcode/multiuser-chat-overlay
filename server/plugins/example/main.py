@@ -1,4 +1,4 @@
-from .sdk import Packet, ServerPlugin, WebSocket
+from .sdk import ClientData, Packet, ServerPlugin, WebSocket
 
 from pydantic import BaseModel
 from logging import Logger
@@ -24,7 +24,7 @@ def startup(config: BaseModel, logger: Logger):
     return True
 
 @plugin.event("on_packet", "message")
-def onMessage(config: BaseModel, logger: Logger, packet: Packet, ws: WebSocket):
+def onMessage(config: BaseModel, logger: Logger, clients: set[ClientData], messages: list, packet: Packet, ws: WebSocket):
     return True
 
 @plugin.event("on_shutdown", None)
