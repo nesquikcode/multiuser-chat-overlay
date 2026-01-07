@@ -145,3 +145,5 @@ key.pem
 server.zip
 test.*
 /utils
+build.cmd
+runb.cmd
