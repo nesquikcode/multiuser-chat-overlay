@@ -1,5 +1,8 @@
 import asyncio
+import base64
+import hashlib
 import importlib.util
+from collections import deque
 from core import ConnectionClose, ConnectionReject, DisconnectionAgree, NicknameChange, Packet, Message, History, ConnectionAccept, ConnectionMeta, ClientData
 
 import json, time, uuid, os, traceback, socket, logging, importlib, sys
@@ -12,6 +15,8 @@ from aiofiles import open as asyncopen
 from pydantic import BaseModel
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.websockets import WebSocketState
+from fastapi.responses import FileResponse, Response
+from bs4 import BeautifulSoup
 os.chdir(os.path.dirname(__file__))
 __version__ = "0.1.71"
 
@@ -28,6 +33,7 @@ class ServerConfig(BaseModel):
     allow_server_actual_version: bool = True
     plugins_directory: str = os.path.abspath(os.path.join(os.path.dirname(__file__), "plugins"))
     errorlog_directory: str = os.path.abspath(os.path.join(os.path.dirname(__file__), "errors"))
+    cache_directory: str = os.path.abspath(os.path.join(os.path.dirname(__file__), "cache"))
     log_level: int = logging.INFO
 
     @staticmethod
@@ -49,10 +55,10 @@ class ServerConfig(BaseModel):
         with open(file, "w", encoding="utf-8") as f:
             f.write(json.dumps(self.model_dump(), indent=4))
 
-messages: list[dict] = []
+config = ServerConfig.load()
+messages: deque[dict] = deque(maxlen=config.server_history_size)
 connecting: set[ClientData] = set()
 clients: set[ClientData] = set()
-config = ServerConfig.load()
 plugins = []
 if config.allow_server_actual_version:
     config.allow_client_version = __version__
@@ -73,8 +79,9 @@ initlogger = logging.getLogger("init")
 pluginslogger = logging.getLogger("plugins")
 shutdownlogger = logging.getLogger("shutdown")
 wslogger = logging.getLogger("ws")
+cachelogger = logging.getLogger("cache")
 
-for x in (initlogger, pluginslogger, shutdownlogger, wslogger):
+for x in (initlogger, pluginslogger, shutdownlogger, wslogger, cachelogger):
     x.setLevel(config.log_level)
     x.addHandler(queue_handler)
 
@@ -112,6 +119,7 @@ async def lifespan(app: FastAPI):
     initlogger.debug(f" - tls (certs): {'enabled' if config.certs is not None else 'disabled'}")
     os.makedirs(config.plugins_directory, exist_ok=True)
     os.makedirs(config.errorlog_directory, exist_ok=True)
+    os.makedirs(config.cache_directory, exist_ok=True)
 
     pluginslogger.info("Loading plugins...")
     sys.path.insert(0, config.plugins_directory)
@@ -197,6 +205,19 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+def process_message(message: Packet):
+    bs4 = BeautifulSoup(message["text"], "lxml")
+    for tag in bs4.find_all(["img", "video", "audio"]):
+        if tag.get("src", "").startswith("data:") and "base64" in tag["src"]:
+            rawbase64 = tag["src"].split(";")
+            rawdata = base64.b64decode(rawbase64[-1].split(",")[-1])
+
+            fileid = hashlib.sha256(rawdata).hexdigest()
+            with open(os.path.join(config.cache_directory, fileid), "wb") as f:
+                f.write(rawdata)
+            tag["src"] = f"http{'' if config.certs is None else 's'}://{socket.gethostbyname(socket.gethostname())}:{config.port}/cached/{fileid}"
+    return str(bs4)
+
 async def broadcast(text: str, author: str, id: int):
 
     tasks = []
@@ -215,6 +236,25 @@ async def broadcast(text: str, author: str, id: int):
                 )
             )
     await asyncio.gather(*tasks, return_exceptions=True)
+
+@app.get("/cached/{unique_id}")
+async def getCached(unique_id: str):
+    cachelogger.debug(f"Got request for cached {unique_id}.")
+
+    isCached = os.path.exists(os.path.join(config.cache_directory, unique_id))
+    if not isCached:
+        cachelogger.debug(f"Request freezed, file {unique_id} is not ready")
+    while not isCached:
+        isCached = os.path.exists(os.path.join(config.cache_directory, unique_id))
+        await asyncio.sleep(1)
+    
+    try:
+        return FileResponse(
+            os.path.join(config.cache_directory, unique_id)
+        )
+    except Exception as e:
+        cachelogger.warning(f"Got exception: {e}")
+        Response(status_code=204)
 
 @app.websocket(config.server_path)
 async def handler(ws: WebSocket):
@@ -257,12 +297,16 @@ async def handler(ws: WebSocket):
             
             client = None
             for x in connecting.copy():
-                if x.ws == ws and x.client_uuid == client_uuid:
+                if x.ws.client_state == WebSocketState.DISCONNECTED:
+                    connecting.discard(x)
+                elif x.ws == ws and x.client_uuid == client_uuid:
                     client = x
                     break
             else:
                 for x in clients.copy():
-                    if x.ws == ws and x.client_uuid == client_uuid:
+                    if x.ws.client_state == WebSocketState.DISCONNECTED:
+                        clients.discard(x)
+                    elif x.ws == ws and x.client_uuid == client_uuid:
                         client = x
                         break
 
@@ -330,7 +374,7 @@ async def handler(ws: WebSocket):
                     await ws.send_text(
                         History(
                             server_uuid,
-                            messages
+                            list(messages)
                         ).wsPacket
                     )
                 elif packet.type == "message":
@@ -346,29 +390,35 @@ async def handler(ws: WebSocket):
                                 int(time.time())
                             ).wsPacket
                         )
-                    
-                    elif len(packet["text"]) > config.server_message_size:
-                        wslogger.debug(f"Client's ({client.client_uuid}) message too big - {len(packet['text'])}, max allowed is {config.server_message_size}.")
-                        await ws.send_text(
-                            Message(
-                                client.server_uuid,
-                                f"Сообщение слишком большое (>{config.server_message_size}).",
-                                config.server_nickname,
-                                int(time.time())
-                            ).wsPacket
-                        )
 
                     else:
-                        wslogger.debug(f"chat / {client.client_uuid}::{client.nickname}: {packet['text']}")
-                        messages.append(packet.content)
-                        if len(messages) > config.server_history_size:
-                            messages.pop(0)
+                        if any([x in packet["text"] for x in ("<audio", "<img", "<video")]):
+                            text = await asyncio.to_thread(process_message, packet)
+                        else:
+                            text = packet["text"]
+
+                        if len(text) > config.server_message_size:
+                            wslogger.debug(f"Client's ({client.client_uuid}) message too big - {len(text)}, max allowed is {config.server_message_size}.")
+                            await ws.send_text(
+                                Message(
+                                    client.server_uuid,
+                                    f"Сообщение слишком большое (>{config.server_message_size}).",
+                                    config.server_nickname,
+                                    int(time.time())
+                                ).wsPacket
+                            )
+                        else:
+                            wslogger.debug(f"chat / {client.client_uuid}::{client.nickname}: {text}")
                         
-                        await broadcast(
-                            packet["text"],
-                            client.nickname,
-                            packet["id"]
-                        )
+                            messages.append(packet.content)
+                            if len(messages) > config.server_history_size:
+                                messages.pop(0)
+                            
+                            await broadcast(
+                                text,
+                                client.nickname,
+                                packet["id"]
+                            )
                 
                 elif packet.type == "privateMessage":
                     wslogger.debug(f"Client {client.client_uuid} requested private message ('{packet['author']}'->'{packet['touser']}').")
@@ -474,7 +524,8 @@ if __name__ == "__main__":
             app,
                 config.ip,
                 config.port,
-                workers=1
+                workers=1,
+                access_log=False
             )
     else:
         cfg = Config(
