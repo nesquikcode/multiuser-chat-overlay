@@ -7,7 +7,7 @@ import { config } from '@/renderer/store/config';
 import { ipc } from '@/renderer/services/ipc';
 import { MUCOReceiver, MUCOSender, MUCOData } from '@/renderer/services/api';
 import { Chat } from '@/renderer/components/chat/chat';
-import { checkUpdates } from '@/renderer/utils/utils';
+import { checkUpdates, fileToBase64, removePrefix } from '@/renderer/utils/utils';
 
 let data = new MUCOData(wsService, config)
 
@@ -26,6 +26,29 @@ let chatTheme = computed(() => `
   font-size: ${currentTheme.value.base.fontsize};
   font-weight: ${currentTheme.value.base.fontboldness};
 `);
+
+window.addEventListener('drop', async (e) => {
+  e.preventDefault();
+  const files = Array.from(e.dataTransfer.files);
+  if (files.length > 1) {console.log("Got more than 1 file in drag&drop. Ignoring unexcepted.")}
+  
+  let file = files[0];
+
+  const data = await fileToBase64(file);
+  if (file.type.startsWith('image/')) {
+    chat.sendMessage(`<img src="${data}"></img>`);
+  } else if (file.type.startsWith('video/')) {
+    chat.sendMessage(`<video controls src="${data}"></video>`);
+  } else if (file.type.startsWith('audio/')) {
+    chat.sendMessage(`<audio controls src="${data}"></audio>`);
+  } else {
+    chat.addMessage("Неизвестный тип файла.", "system");
+  }
+});
+
+window.addEventListener('add-message', async (e, msg, from) => {
+  chat.addMessage(msg, from);
+})
 
 onMounted(async () => {
   let mucover = await ipc.getVersion();

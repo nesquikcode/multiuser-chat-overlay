@@ -11,7 +11,6 @@ import { createProtocol } from 'vue-cli-plugin-electron-builder/lib'
 import installExtension, { VUEJS3_DEVTOOLS } from 'electron-devtools-installer'
 const isDevelopment = process.env.NODE_ENV !== 'production'
 
-let focused = false;
 let config = getConfig();
 
 const fontsDir = path.join(app.getPath('userData'), 'fonts')
@@ -67,20 +66,18 @@ async function createWindow() {
   for (const keyBind of config.typeKeybinds) {
     globalShortcut.register(keyBind, () => {
       if (win) {
-        if (config.disableBindWhenTyping && focused) {
+        if (config.disableBindWhenTyping && win.isFocused()) {
           sendTransparentKey(win, keyBind);
           return;
         }
-        if (focused) {
+        if (win.isFocused()) {
           console.log("[event]: stop-type-event");
           win.webContents.send('stop-type-event');
-          focused = false;
           win.show();
           win.blur();
         } else {
           console.log("[event]: type-event");
           win.webContents.send('type-event');
-          focused = true;
           win.show();
           win.focus();
         }
@@ -91,7 +88,6 @@ async function createWindow() {
   ipcMain.on('window:blur', () => {
     console.log("[event]: stop-type-event");
     win.webContents.send('stop-type-event');
-    focused = false;
     win.show();
     win.blur();
   })

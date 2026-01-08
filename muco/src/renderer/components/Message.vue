@@ -91,6 +91,11 @@ if (config.data.safeFormattingRender) {
   max-height: 70vh;
 }
 
+.content audio {
+  max-width: 75vw;
+  max-height: 17vh;
+}
+
 .slicer {
   margin-right: 4px;
 }
