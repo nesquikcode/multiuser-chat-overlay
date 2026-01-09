@@ -20,55 +20,72 @@ const defaultConfig = {
                 fontboldness: "0"
             },
             message: {
-                author: {
-                    background: "none",
-                    textcolor: "rgba(255, 255, 255, 0.7)",
-                    font: "Arial, sans-serif",
-                    fontsize: "12px",
-                    fontboldness: "bold"
+                default: {
+                    messagehtml: '<div class="message"><div class="author" :style="authorTheme" v-html="renderedAuthor"></div><div class="author slicer" :style="authorTheme">: </div><div class="content" :style="contentTheme" v-html="renderedContent"></div></div>',
+                    author: {
+                        background: "none",
+                        textcolor: "rgba(255, 255, 255, 0.7)",
+                        font: "Arial, sans-serif",
+                        fontsize: "12px",
+                        fontboldness: "bold"
+                    },
+                    content: {
+                        background: "none",
+                        textcolor: "rgba(255, 255, 255, 0.9)",
+                        font: "Arial, sans-serif",
+                        fontsize: "12px",
+                        fontboldness: "0"
+                    },
+                    slicer: {
+                        marginleft: "0",
+                        marginright: "0"
+                    }
                 },
-                content: {
-                    background: "none",
-                    textcolor: "rgba(255, 255, 255, 0.9)",
-                    font: "Arial, sans-serif",
-                    fontsize: "12px",
-                    fontboldness: "0"
+                system: {
+                    messagehtml: '<div class="message"><div class="author" :style="authorTheme" v-html="renderedAuthor"></div><div class="author slicer" :style="authorTheme">: </div><div class="content" :style="contentTheme" v-html="renderedContent"></div></div>',
+                    author: {
+                        background: "none",
+                        textcolor: "rgba(255, 255, 255, 0.7)",
+                        font: "Arial, sans-serif",
+                        fontsize: "12px",
+                        fontboldness: "bold"
+                    },
+                    content: {
+                        background: "none",
+                        textcolor: "rgba(255, 255, 255, 0.9)",
+                        font: "Arial, sans-serif",
+                        fontsize: "12px",
+                        fontboldness: "0"
+                    },
+                    slicer: {
+                        marginleft: "0",
+                        marginright: "0"
+                    }
                 }
             },
             input: {
                 height: "24px",
                 width: "100%",
-                color: "rgba(255, 255, 255, 0.4)"
-            }
-        },
-        "white" : {
-            base: {
-                basecolor: "rgba(255, 255, 255, 0.4)",
-                textcolor: "rgba(22, 22, 22, 0.9)",
-                font: "Arial, sans-serif",
-                fontsize: "12px",
-                fontboldness: "0"
+                top: "auto",
+                bottom: "0",
+                left: "0",
+                right: "auto",
+                color: "rgba(255, 255, 255, 0.4)",
+                placeholdertext: "Type a message..."
             },
-            message: {
-                author: {
-                    background: "none",
-                    textcolor: "rgba(22, 22, 22, 0.9)",
-                    font: "Arial, sans-serif",
-                    fontsize: "12px",
-                    fontboldness: "bold"
+            tags: {
+                img: {
+                    maxwidth: "60vw",
+                    maxheight: "70vh"
                 },
-                content: {
-                    background: "none",
-                    textcolor: "rgba(0, 0, 0, 0.9)",
-                    font: "Arial, sans-serif",
-                    fontsize: "12px",
-                    fontboldness: "0"
+                video: {
+                    maxwidth: "60vw",
+                    maxheight: "70vh"
+                },
+                audio: {
+                    maxwidth: "75vw",
+                    maxheight: "17vh"
                 }
-            },
-            input: {
-                height: "24px",
-                width: "100%",
-                color: "rgba(18, 18, 18, 0.6)"
             }
         }
     },

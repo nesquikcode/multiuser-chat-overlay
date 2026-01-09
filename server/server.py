@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.websockets import WebSocketState
 from fastapi.responses import FileResponse, Response
+from fastapi.requests import Request
 from bs4 import BeautifulSoup
 os.chdir(os.path.dirname(__file__))
 __version__ = "0.1.71"
@@ -205,7 +206,7 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-def process_message(message: Packet):
+def process_message(message: Packet, host: str | None = None):
     bs4 = BeautifulSoup(message["text"], "lxml")
     for tag in bs4.find_all(["img", "video", "audio"]):
         if tag.get("src", "").startswith("data:") and "base64" in tag["src"]:
@@ -215,7 +216,7 @@ def process_message(message: Packet):
             fileid = hashlib.sha256(rawdata).hexdigest()
             with open(os.path.join(config.cache_directory, fileid), "wb") as f:
                 f.write(rawdata)
-            tag["src"] = f"http{'' if config.certs is None else 's'}://{socket.gethostbyname(socket.gethostname())}:{config.port}/cached/{fileid}"
+            tag["src"] = f"http{'' if config.certs is None else 's'}://{socket.gethostbyname(socket.gethostname()) if host is None else host}{':'+str(config.port) if host is None else ''}/cached/{fileid}"
     return str(bs4)
 
 async def broadcast(text: str, author: str, id: int):
@@ -325,7 +326,7 @@ async def handler(ws: WebSocket):
                     wslogger.debug(f"Got connmeta from {client.client_uuid} client.")
                     
                     for x in clients:
-                        if x.nickname == packet["nickname"]:
+                        if x.nickname == packet["nickname"] and x.ws.client_state != WebSocketState.DISCONNECTED:
                             wslogger.debug(f"Client {client.client_uuid} using same nickname as {x.client_uuid}. Rejecting connection.")
                             await ws.send_text(
                                 ConnectionReject(
@@ -393,7 +394,7 @@ async def handler(ws: WebSocket):
 
                     else:
                         if any([x in packet["text"] for x in ("<audio", "<img", "<video")]):
-                            text = await asyncio.to_thread(process_message, packet)
+                            text = await asyncio.to_thread(process_message, packet, ws.headers.get("host"))
                         else:
                             text = packet["text"]
 
@@ -410,9 +411,9 @@ async def handler(ws: WebSocket):
                         else:
                             wslogger.debug(f"chat / {client.client_uuid}::{client.nickname}: {text}")
                         
-                            messages.append(packet.content)
+                            messages.append({"text": text, "author": packet["author"], "id": packet["id"]})
                             if len(messages) > config.server_history_size:
-                                messages.pop(0)
+                                messages.popleft()
                             
                             await broadcast(
                                 text,

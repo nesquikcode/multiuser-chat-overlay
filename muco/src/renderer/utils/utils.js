@@ -19,28 +19,28 @@ export function setByKey(obj, path, value) {
 }
 
 export async function checkUpdates(chat) {
-  chat.addMessage("Проверка обновлений...", "update")
+  chat.addSystemMessage("Проверка обновлений...", "update")
   let updates = await ipc.checkUpdates()
   if (updates.isUpToDate) {
-    chat.addMessage("MUCO последней версии, обновлений не требуется.", "update")
+    chat.addSystemMessage("MUCO последней версии, обновлений не требуется.", "update")
   } else {
-    chat.addMessage(`Доступна новая версия MUCO - ${updates.latest.version}.`, "update")
+    chat.addSystemMessage(`Доступна новая версия MUCO - ${updates.latest.version}.`, "update")
     if (config.data.autoUpdate) {
-      chat.addMessage("Скачиваем последнюю версию, MUCO перезапустится для обновления.", "update")
+      chat.addSystemMessage("Скачиваем последнюю версию, MUCO перезапустится для обновления.", "update")
       ipc.updateToLatest()
     } else {
-      chat.addMessage(`Автообновление отключено. Скачать новую версию можно <a href='${updates.latest.link}' target='_blank'>вручную</a>.`, "update")
+      chat.addSystemMessage(`Автообновление отключено. Скачать новую версию можно <a href='${updates.latest.link}' target='_blank'>вручную</a>.`, "update")
     }
   }
 }
 
 export function checkOnline(data) {
   if (data.isConnected && (data.wsService.socket == null)) {
-    data.chat.addMessage("Отключено от сервера.", "system");
+    data.chat.addSystemMessage("Отключено от сервера.", "system");
     data.isConnected = false;
 
     if (data.config.data.autoReconnect) {
-      data.chat.addMessage("Переподключение к серверу...", "system");
+      data.chat.addSystemMessage("Переподключение к серверу...", "system");
       data.wsService.connect(data.connectedTo);
     } else {
       data.connectedTo = null;

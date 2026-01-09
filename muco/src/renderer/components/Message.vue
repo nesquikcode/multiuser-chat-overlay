@@ -1,23 +1,7 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, compile } from 'vue';
 import { config } from '@/renderer/store/config'
 import { renderMarkdownSafe, renderMarkdown } from '@/renderer/utils/markdown';
-
-let currentTheme = computed(() => config.data.themes[config.data.activeTheme]);
-let authorTheme = computed(() => `
-  background: ${currentTheme.value.message.author.background};
-  color: ${currentTheme.value.message.author.textcolor};
-  font-family: ${currentTheme.value.message.author.font};
-  font-size: ${currentTheme.value.message.author.fontsize};
-  font-weight: ${currentTheme.value.message.author.fontboldness};
-`)
-let contentTheme = computed(() => `
-  background: ${currentTheme.value.message.content.background};
-  color: ${currentTheme.value.message.content.textcolor};
-  font-family: ${currentTheme.value.message.content.font};
-  font-size: ${currentTheme.value.message.content.fontsize};
-  font-weight: ${currentTheme.value.message.content.fontboldness};
-`)
 
 const props = defineProps({
   message: {
@@ -26,24 +10,62 @@ const props = defineProps({
   }
 });
 let message = props.message;
-let renderedAuthor;
-let renderedContent;
-if (config.data.safeFormattingRender) {
-  renderedAuthor = ref(renderMarkdownSafe(message.author));
-  renderedContent = ref(renderMarkdownSafe(message.text));
-} else {
-  renderedAuthor = ref(renderMarkdown(message.author));
-  renderedContent = ref(renderMarkdown(message.text));
+let currentTheme = computed(() => config.data.themes[config.data.activeTheme].message[message.msgType]);
+let compiled = computed(() => {return compile(currentTheme.value.messagehtml)})
+
+const MessageContent = {
+  setup() {
+
+    let renderedAuthor;
+    let renderedContent;
+    if (config.data.safeFormattingRender) {
+      renderedAuthor = ref(renderMarkdownSafe(message.author));
+      renderedContent = ref(renderMarkdownSafe(message.text));
+    } else {
+      renderedAuthor = ref(renderMarkdown(message.author));
+      renderedContent = ref(renderMarkdown(message.text));
+    }
+
+    let currentTheme = computed(() => config.data.themes[config.data.activeTheme].message[message.msgType]);
+    let authorTheme = computed(() => `
+      background: ${currentTheme.value.author.background};
+      color: ${currentTheme.value.author.textcolor};
+      font-family: ${currentTheme.value.author.font};
+      font-size: ${currentTheme.value.author.fontsize};
+      font-weight: ${currentTheme.value.author.fontboldness};
+    `)
+    let contentTheme = computed(() => `
+      background: ${currentTheme.value.content.background};
+      color: ${currentTheme.value.content.textcolor};
+      font-family: ${currentTheme.value.content.font};
+      font-size: ${currentTheme.value.content.fontsize};
+      font-weight: ${currentTheme.value.content.fontboldness};
+    `)
+
+
+    return {
+      currentTheme,
+      contentTheme,
+      authorTheme,
+      renderedAuthor,
+      renderedContent,
+      config
+    }
+  },
+  props: {},
+  data() {
+    return {}
+  },
+  computed: {},
+  methods: {},
+  render: compiled.value
 }
 
 </script>
 
 <template>
-  <div class="message" ref="thisRef">
-    <div class="author" :style="authorTheme" v-html="renderedAuthor"></div>
-    <div class="author slicer" :style="authorTheme">: </div>
-    <div class="content" :style="contentTheme" v-html="renderedContent"></div>
-  </div>
+  <component :is="MessageContent" ref="thisRef">
+  </component>
 </template>
 
 <style>
@@ -62,10 +84,11 @@ if (config.data.safeFormattingRender) {
 .content {
   overflow-wrap: break-word;
   white-space: pre-wrap;
-  word-break: keep-all;
+  word-break: break-word;
   line-break: strict;
   hyphens: auto;
-  width: 87%;
+  width: auto;
+  padding-right: 4px;
   -webkit-app-region: no-drag;
 }
 

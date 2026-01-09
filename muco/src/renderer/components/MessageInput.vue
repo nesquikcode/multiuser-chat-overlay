@@ -8,6 +8,7 @@ let inputTheme = computed(() => `
   height: ${theme.value.input.height};
   --placeholder: ${theme.value.input.color};
 `);
+let placeholder = computed(() => {return theme.value.input.placeholdertext});
 
 const emit = defineEmits(['send']);
 
@@ -76,7 +77,7 @@ onUnmounted(() => {
     :style="inputTheme"
     class="message-input"
     id="input"
-    placeholder="Type a message..."
+    :placeholder="placeholder"
     @keydown.enter.prevent="sendMessage"
     @keydown.up.prevent="upHistory"
     @keydown.down.prevent="downHistory"

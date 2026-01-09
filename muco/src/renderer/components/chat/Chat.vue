@@ -42,26 +42,26 @@ window.addEventListener('drop', async (e) => {
   } else if (file.type.startsWith('audio/')) {
     chat.sendMessage(`<audio controls src="${data}"></audio>`);
   } else {
-    chat.addMessage("Неизвестный тип файла.", "system");
+    chat.addSystemMessage("Неизвестный тип файла.", "system");
   }
 });
 
 window.addEventListener('add-message', async (e, msg, from) => {
-  chat.addMessage(msg, from);
+  chat.addSystemMessage(msg, from);
 })
 
 onMounted(async () => {
   let mucover = await ipc.getVersion();
-  chat.addMessage(`MUCO ${mucover}`, "system");
+  chat.addSystemMessage(`MUCO ${mucover}`, "system");
   if (config.data.servers.length > 0 && config.data.autoConnectTo != -1) {
     sender.connect(config.data.servers[config.data.autoConnectTo]);
   } else {
-    chat.addMessage("Чат не подключен к серверу.", "setup");
-    chat.addMessage("Для настройки MUCO стоит прочитать <a href='https://github.com/nesquikcode/multiuser-chat-overlay/wiki/%D0%9A%D0%BE%D0%BD%D1%84%D0%B8%D0%B3-muco.json' target='_blank'>wiki по конфигу</a>.", "setup")
-    chat.addMessage("Активные бинды:", "system");
-    chat.addMessage("  Enter - отправить сообщение", "system");
-    chat.addMessage(`  ${config.data.typeKeybinds.join(' ')} - переключить фокус чата`, "system");
-    chat.addMessage(`Доп. команды: ${config.data.commandPrefix}help`, "system");
+    chat.addSystemMessage("Чат не подключен к серверу.", "setup");
+    chat.addSystemMessage("Для настройки MUCO стоит прочитать <a href='https://github.com/nesquikcode/multiuser-chat-overlay/wiki/%D0%9A%D0%BE%D0%BD%D1%84%D0%B8%D0%B3-muco.json' target='_blank'>wiki по конфигу</a>.", "setup")
+    chat.addSystemMessage("Активные бинды:", "system");
+    chat.addSystemMessage("  Enter - отправить сообщение", "system");
+    chat.addSystemMessage(`  ${config.data.typeKeybinds.join(' ')} - переключить фокус чата`, "system");
+    chat.addSystemMessage(`Доп. команды: ${config.data.commandPrefix}help`, "system");
   }
   checkUpdates(chat);
 })

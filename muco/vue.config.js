@@ -14,5 +14,12 @@ module.exports = defineConfig({
       mainProcessFile: 'src/main/background.js',
       preload: 'src/main/preload.js'
     }
+  },
+  configureWebpack: {
+    resolve: {
+      alias: {
+        vue$: 'vue/dist/vue.esm-bundler.js'
+      }
+    }
   }
 })
