@@ -7,7 +7,7 @@ import { config } from '@/renderer/store/config';
 import { ipc } from '@/renderer/services/ipc';
 import { MUCOReceiver, MUCOSender, MUCOData } from '@/renderer/services/api';
 import { Chat } from '@/renderer/components/chat/chat';
-import { checkUpdates, fileToBase64, removePrefix } from '@/renderer/utils/utils';
+import { checkUpdates, fileToBase64 } from '@/renderer/utils/utils';
 
 let data = new MUCOData(wsService, config)
 
@@ -26,6 +26,26 @@ let chatTheme = computed(() => `
   font-size: ${currentTheme.value.base.fontsize};
   font-weight: ${currentTheme.value.base.fontboldness};
 `);
+
+window.addEventListener('paste', async (event) => {
+  const items = event.clipboardData.items;
+
+  console.log(items);
+  for (const item of items) {
+    const file = item.getAsFile();
+    const data = await fileToBase64(file);
+    if (file.type.startsWith('image/')) {
+      chat.sendMessage(`<img src="${data}"></img>`);
+    } else if (file.type.startsWith('video/')) {
+      chat.sendMessage(`<video controls src="${data}"></video>`);
+    } else if (file.type.startsWith('audio/')) {
+      chat.sendMessage(`<audio controls src="${data}"></audio>`);
+    } else {
+      chat.addSystemMessage("Неизвестный тип файла.", "system");
+    }
+  }
+});
+
 
 window.addEventListener('drop', async (e) => {
   e.preventDefault();

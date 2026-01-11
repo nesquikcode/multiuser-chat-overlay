@@ -62,3 +62,18 @@ export function fileToBase64(file) {
     reader.readAsDataURL(file);
   });
 }
+
+export function walkObject(obj, callback, path = []) {
+  if (obj === null || typeof obj !== 'object') return;
+
+  for (const key of Object.keys(obj)) {
+    const value = obj[key];
+    const currentPath = [...path, key];
+
+    callback(value, key, currentPath, obj);
+
+    if (typeof value === 'object' && value !== null) {
+      walkObject(value, callback, currentPath);
+    }
+  }
+}
