@@ -13,13 +13,12 @@ from logging.handlers import QueueHandler, QueueListener
 from datetime import datetime
 from aiofiles import open as asyncopen
 from pydantic import BaseModel
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, Form, File
 from fastapi.websockets import WebSocketState
-from fastapi.responses import FileResponse, Response
-from fastapi.requests import Request
+from fastapi.responses import FileResponse, Response, PlainTextResponse
 from bs4 import BeautifulSoup
 os.chdir(os.path.dirname(__file__))
-__version__ = "0.1.71"
+__version__ = "0.1.82"
 
 class ServerConfig(BaseModel):
     ip: str = "0.0.0.0"
@@ -174,7 +173,7 @@ async def lifespan(app: FastAPI):
     process_event("on_startup")
 
     serverip = socket.gethostbyname(socket.gethostname())
-    pluginslogger.info(f"Server link: ws{'s' if config.certs is not None else ''}://{serverip}:{config.port}{config.server_path}")
+    initlogger.info(f"Server link: ws{'s' if config.certs is not None else ''}://{serverip}:{config.port}{config.server_path}")
     initlogger.info("Done! Server started.")
     yield
     shutdownlogger.info("Shutting down MUCO Server...")
@@ -206,6 +205,14 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+def isLxmlInstalled():
+    try:
+        import lxml
+        return True
+    except: return False
+
+# Uploading files with base64 in messages is very unefficient, slow and deprecated for now, but still supported for older clients as legacy upload method.
+# New method is upload via post http request, native way to upload files in web.
 def process_message(message: Packet, host: str | None = None):
     bs4 = BeautifulSoup(message["text"], "lxml")
     for tag in bs4.find_all(["img", "video", "audio"]):
@@ -216,7 +223,7 @@ def process_message(message: Packet, host: str | None = None):
             fileid = hashlib.sha256(rawdata).hexdigest()
             with open(os.path.join(config.cache_directory, fileid), "wb") as f:
                 f.write(rawdata)
-            tag["src"] = f"http{'' if config.certs is None else 's'}://{socket.gethostbyname(socket.gethostname()) if host is None else host}{':'+str(config.port) if host is None else ''}/cached/{fileid}"
+            tag["src"] = f"http{'' if config.certs is None else 's'}://{socket.gethostbyname(socket.gethostname()) if host is None else host}{':'+str(config.port) if host is None else ''}{config.server_path if config.server_path.endswith('/') else config.server_path+'/'}cached/{fileid}"
     return str(bs4)
 
 async def broadcast(text: str, author: str, id: int):
@@ -238,13 +245,13 @@ async def broadcast(text: str, author: str, id: int):
             )
     await asyncio.gather(*tasks, return_exceptions=True)
 
-@app.get("/cached/{unique_id}")
+@app.get((config.server_path if config.server_path.endswith('/') else config.server_path+'/')+"cached/{unique_id}")
 async def getCached(unique_id: str):
     cachelogger.debug(f"Got request for cached {unique_id}.")
 
     isCached = os.path.exists(os.path.join(config.cache_directory, unique_id))
     if not isCached:
-        cachelogger.debug(f"Request freezed, file {unique_id} is not ready")
+        cachelogger.debug(f"Request freezed, file {unique_id} is not ready (path not exists: {os.path.join(config.cache_directory, unique_id)})")
     while not isCached:
         isCached = os.path.exists(os.path.join(config.cache_directory, unique_id))
         await asyncio.sleep(1)
@@ -256,6 +263,38 @@ async def getCached(unique_id: str):
     except Exception as e:
         cachelogger.warning(f"Got exception: {e}")
         Response(status_code=204)
+
+@app.post((config.server_path if config.server_path.endswith('/') else config.server_path+'/')+"upload")
+async def uploadCache(clientId: str = Form(...), file: UploadFile = File(...)):
+    cl = None
+    for x in clients:
+        if x.client_uuid == clientId:
+            cl = x
+            break
+    if not cl: return Response(status_code=400)
+    cachelogger.debug(f"Uploading file from client '{cl.nickname}' ({cl.client_uuid}).")
+
+    ftype = None
+    if file.content_type is None:
+        cachelogger.debug(f"Uploading failed from client '{cl.nickname}' ({cl.client_uuid}): content_type required.")
+        return Response("content_type required", status_code=400)
+    for x in ["image", "video", "audio"]:
+        if file.content_type.startswith(x):
+            ftype = file.content_type
+            break
+    if ftype is None:
+        cachelogger.debug(f"Uploading failed from client '{cl.nickname}' ({cl.client_uuid}): unsupported content_type.")
+        return Response("unsupported content_type", status_code=400)
+
+    content = await file.read()
+    fileid = hashlib.sha256(content).hexdigest()
+    with open(os.path.join(config.cache_directory, fileid), "wb") as f:
+        cachelogger.debug(f"CONTENT SIZE: {len(content)}")
+        cachelogger.debug(f"Writting content to: {os.path.join(config.cache_directory, fileid)}")
+        f.write(content)
+    
+    cachelogger.debug(f"Uploading done from client '{cl.nickname}' ({cl.client_uuid}), new file is '{fileid}' ({ftype}).")
+    return PlainTextResponse(fileid)
 
 @app.websocket(config.server_path)
 async def handler(ws: WebSocket):
@@ -394,7 +433,11 @@ async def handler(ws: WebSocket):
 
                     else:
                         if any([x in packet["text"] for x in ("<audio", "<img", "<video")]):
-                            text = await asyncio.to_thread(process_message, packet, ws.headers.get("host"))
+                            if isLxmlInstalled():
+                                text = await asyncio.to_thread(process_message, packet, ws.headers.get("host"))
+                            else:
+                                text = packet["text"]
+                                wslogger.warning("Requirements for tag formatting (img/video/audio) not installed. For sending files in chat install bs4 and lxml libs: pip install beautifulsoup4 lxml")
                         else:
                             text = packet["text"]
 

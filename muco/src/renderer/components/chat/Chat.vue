@@ -33,16 +33,31 @@ window.addEventListener('paste', async (event) => {
   console.log(items);
   for (const item of items) {
     const file = item.getAsFile();
-    const data = await fileToBase64(file);
-    if (file.type.startsWith('image/')) {
-      chat.sendMessage(`<img src="${data}"></img>`);
-    } else if (file.type.startsWith('video/')) {
-      chat.sendMessage(`<video controls src="${data}"></video>`);
-    } else if (file.type.startsWith('audio/')) {
-      chat.sendMessage(`<audio controls src="${data}"></audio>`);
-    } else {
+    if ((!file.type.startsWith('image/')) && (!file.type.startsWith('video/')) && (!file.type.startsWith('audio/'))) {
       chat.addSystemMessage("Неизвестный тип файла.", "system");
+      continue;
     }
+    const fileid = sender.uploadFile(file);
+    console.log("Uploading file...")
+    fileid.then(async (fileid) => {
+      let url = new URL(data.connectedTo);
+      if (url.protocol == "wss:") {url.protocol = "https:"}
+      else if (url.protocol == "ws:") {url.protocol = "http:"}
+      url.pathname =
+        url.pathname.replace(/\/$/, "") +
+        "/cached/" +
+        (await fileid.text());
+      console.log("file uploaded, url: " + url.toString())
+      if (file.type.startsWith('image/')) {
+        chat.sendMessage(`<img src="${url.toString()}"></img>`);
+      } else if (file.type.startsWith('video/')) {
+        chat.sendMessage(`<video controls src="${url.toString()}"></video>`);
+      } else if (file.type.startsWith('audio/')) {
+        chat.sendMessage(`<audio controls src="${url.toString()}"></audio>`);
+      } else {
+        chat.addSystemMessage("Неизвестный тип файла.", "system");
+      }
+    });
   }
 });
 
@@ -53,17 +68,32 @@ window.addEventListener('drop', async (e) => {
   if (files.length > 1) {console.log("Got more than 1 file in drag&drop. Ignoring unexcepted.")}
   
   let file = files[0];
-
-  const data = await fileToBase64(file);
-  if (file.type.startsWith('image/')) {
-    chat.sendMessage(`<img src="${data}"></img>`);
-  } else if (file.type.startsWith('video/')) {
-    chat.sendMessage(`<video controls src="${data}"></video>`);
-  } else if (file.type.startsWith('audio/')) {
-    chat.sendMessage(`<audio controls src="${data}"></audio>`);
-  } else {
+  if ((!file.type.startsWith('image/')) && (!file.type.startsWith('video/')) && (!file.type.startsWith('audio/'))) {
     chat.addSystemMessage("Неизвестный тип файла.", "system");
+    return;
   }
+
+  const fileid = sender.uploadFile(file);
+  console.log("Uploading file...");
+  fileid.then(async (fileid) => {
+    let url = new URL(data.connectedTo);
+    if (url.protocol == "wss:") {url.protocol = "https:"}
+    else if (url.protocol == "ws:") {url.protocol = "http:"}
+    url.pathname =
+      url.pathname.replace(/\/$/, "") +
+      "/cached/" +
+      (await fileid.text());
+    console.log("file uploaded, url: " + url.toString())
+    if (file.type.startsWith('image/')) {
+      chat.sendMessage(`<img src="${url.toString()}"></img>`);
+    } else if (file.type.startsWith('video/')) {
+      chat.sendMessage(`<video controls src="${url.toString()}"></video>`);
+    } else if (file.type.startsWith('audio/')) {
+      chat.sendMessage(`<audio controls src="${url.toString()}"></audio>`);
+    } else {
+      chat.addSystemMessage("Неизвестный тип файла.", "system");
+    }
+  });
 });
 
 window.addEventListener('add-message', async (e, msg, from) => {

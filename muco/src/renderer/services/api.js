@@ -109,7 +109,7 @@ export class MUCOData {
         this.api = new MUCOAPI();
 
         this.config = config;
-        this.protover = "0.1.71";
+        this.protover = "0.1.82";
 
         this.clientUUID = crypto.randomUUID();
         this.serverUUID = null;
@@ -176,6 +176,22 @@ export class MUCOSender {
         this.ws.send(
             this.data.api.nickchange(this.data.clientUUID, nick)
         )
+    }
+
+    uploadFile(file) {
+        let form = new FormData()
+        form.append("clientId", this.data.clientUUID)
+        form.append("file", file)
+        let url = new URL(this.data.connectedTo)
+        if (url.protocol == "wss:") {url.protocol = "https:"}
+        else if (url.protocol == "ws:") {url.protocol = "http:"}
+        url.pathname = url.pathname.replace(/\/$/, "") + "/upload";
+
+        let resp = fetch(url.toString(), {
+            method: "POST",
+            body: form
+        })
+        return resp
     }
 
     disconnect() {
