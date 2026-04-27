@@ -2,6 +2,7 @@ aiofiles==25.1.0
 fastapi==0.128.0
 pydantic==2.12.5
 uvicorn==0.40.0
+python-multipart
 websockets
 beautifulsoup4
 lxml
